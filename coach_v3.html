@@ -403,27 +403,51 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 
     <!-- Instructions -->
     <div style="background:#F7F3EE;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6">
-      📱 <strong style="color:var(--dark)">2 options :</strong><br>
-      • Capture d'écran MyFitnessPal après scan<br>
-      • Photo de l'emballage (tableau nutritionnel)
+      📱 <strong style="color:var(--dark)">Recto + verso si besoin :</strong><br>
+      • Photo 1 : tableau nutritionnel (obligatoire)<br>
+      • Photo 2 : autre face de l'emballage (optionnel)
     </div>
 
-    <!-- Drop zone / file input -->
-    <div id="photo-dropzone" onclick="document.getElementById('photo-file-input').click()"
-      style="border:2px dashed var(--border);border-radius:14px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:#fff">
-      <div id="photo-preview-wrap" style="display:none;margin-bottom:10px">
-        <img id="photo-preview" style="max-width:100%;max-height:200px;border-radius:10px;object-fit:contain">
+    <!-- Deux zones photos côte à côte -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+
+      <!-- Photo 1 -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Photo 1 · Recto</div>
+        <div id="photo-dropzone-1" onclick="document.getElementById('photo-file-input-1').click()"
+          style="border:2px dashed var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div id="photo-preview-wrap-1" style="display:none;width:100%">
+            <img id="photo-preview-1" style="max-width:100%;max-height:120px;border-radius:8px;object-fit:contain">
+            <div id="photo-size-1" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center"></div>
+          </div>
+          <div id="photo-placeholder-1">
+            <div style="font-size:26px;margin-bottom:4px">📷</div>
+            <div style="font-size:11px;font-weight:600;color:var(--dark)">Ajouter</div>
+          </div>
+        </div>
+        <input type="file" id="photo-file-input-1" accept="image/*" style="display:none" onchange="onPhotoSelected(event,1)">
       </div>
-      <div id="photo-placeholder">
-        <div style="font-size:32px;margin-bottom:8px">📷</div>
-        <div style="font-size:13px;font-weight:600;color:var(--dark);margin-bottom:4px">Appuyer pour choisir une photo</div>
-        <div style="font-size:11px;color:var(--muted)">Emballage ou capture MyFitnessPal</div>
+
+      <!-- Photo 2 -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Photo 2 · Verso <span style="font-weight:400;opacity:.6">(optionnel)</span></div>
+        <div id="photo-dropzone-2" onclick="document.getElementById('photo-file-input-2').click()"
+          style="border:2px dashed var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div id="photo-preview-wrap-2" style="display:none;width:100%">
+            <img id="photo-preview-2" style="max-width:100%;max-height:120px;border-radius:8px;object-fit:contain">
+            <div id="photo-size-2" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center"></div>
+          </div>
+          <div id="photo-placeholder-2">
+            <div style="font-size:26px;margin-bottom:4px">➕</div>
+            <div style="font-size:11px;font-weight:600;color:var(--muted)">Optionnel</div>
+          </div>
+        </div>
+        <input type="file" id="photo-file-input-2" accept="image/*" style="display:none" onchange="onPhotoSelected(event,2)">
       </div>
     </div>
-    <input type="file" id="photo-file-input" accept="image/*" style="display:none" onchange="onPhotoSelected(event)">
 
     <button id="btn-analyze-photo" class="btn btn-dark w100" onclick="analyzePhoto()" style="display:none;margin-bottom:14px">
-      🔍 Analyser la photo
+      🔍 Analyser
     </button>
 
     <div id="scan-result" style="margin-top:4px"></div>
@@ -638,12 +662,12 @@ function defaultAliments(){
     {id:'a13',name:'Yaourt grec 0%',brand:'',kcal100:63,prot100:8.7,gluc100:3.6,lip100:0,fibr100:0},
     {id:'a14',name:'Cottage cheese',brand:'',kcal100:64,prot100:11.3,gluc100:3.4,lip100:1.3,fibr100:0},
     {id:'a15',name:'Quark (fromage maigre)',brand:'',kcal100:85,prot100:16,gluc100:3.7,lip100:0,fibr100:0},
-    {id:'a16',name:'Riz basmati (cru)',brand:'',kcal100:350,prot100:7.5,gluc100:77,lip100:0.9,fibr100:0.8},
-    {id:'a17',name:'Quinoa (cru)',brand:'',kcal100:368,prot100:14,gluc100:57,lip100:6,fibr100:7},
+    {id:'a16',name:'Riz basmati (cru)',brand:'',kcal100:358,prot100:7.1,gluc100:79,lip100:0.9,fibr100:0.8},
+    {id:'a17',name:'Quinoa (cru)',brand:'',kcal100:368,prot100:14,gluc100:64,lip100:6,fibr100:7},
     {id:'a18',name:'Pâtes complètes (crues)',brand:'',kcal100:348,prot100:12,gluc100:68,lip100:2.5,fibr100:8},
-    {id:'a19',name:'Flocons d\'avoine',brand:'',kcal100:379,prot100:13,gluc100:66,lip100:7,fibr100:10},
+    {id:'a19',name:'Flocons d\'avoine',brand:'',kcal100:372,prot100:13.5,gluc100:59,lip100:7,fibr100:10},
     {id:'a20',name:'Patate douce',brand:'',kcal100:86,prot100:1.6,gluc100:20,lip100:0.1,fibr100:3},
-    {id:'a21',name:'Lentilles corail (crues)',brand:'',kcal100:345,prot100:23.5,gluc100:52,lip100:1,fibr100:15},
+    {id:'a21',name:'Lentilles corail (crues)',brand:'',kcal100:350,prot100:23,gluc100:59,lip100:1,fibr100:15},
     {id:'a22',name:'Courgette',brand:'',kcal100:17,prot100:1.8,gluc100:3.4,lip100:0.4,fibr100:1.1},
     {id:'a23',name:'Brocoli',brand:'',kcal100:34,prot100:2.8,gluc100:4,lip100:0.4,fibr100:2.6},
     {id:'a24',name:'Épinards frais',brand:'',kcal100:23,prot100:2.9,gluc100:1.4,lip100:0.4,fibr100:2.2},
@@ -655,16 +679,16 @@ function defaultAliments(){
     {id:'a30',name:'Poivron',brand:'',kcal100:28,prot100:1,gluc100:6,lip100:0.3,fibr100:2},
     {id:'a31',name:'Pomme',brand:'',kcal100:48,prot100:0.3,gluc100:11.5,lip100:0.2,fibr100:2.4},
     {id:'a32',name:'Fraises',brand:'',kcal100:30,prot100:0.7,gluc100:5.3,lip100:0.3,fibr100:2},
-    {id:'a33',name:'Framboises',brand:'',kcal100:32,prot100:1,gluc100:5,lip100:0.7,fibr100:6.7},
-    {id:'a34',name:'Myrtilles',brand:'',kcal100:47,prot100:1,gluc100:10,lip100:0.5,fibr100:2.4},
+    {id:'a33',name:'Framboises',brand:'',kcal100:52,prot100:1.2,gluc100:5.4,lip100:0.7,fibr100:6.5},
+    {id:'a34',name:'Myrtilles',brand:'',kcal100:57,prot100:0.7,gluc100:12,lip100:0.5,fibr100:2.4},
     {id:'a35',name:'Banane',brand:'',kcal100:87,prot100:1.1,gluc100:20,lip100:0.2,fibr100:2.6},
-    {id:'a36',name:'Kiwi',brand:'',kcal100:49,prot100:1.1,gluc100:10,lip100:0.5,fibr100:3},
+    {id:'a36',name:'Kiwi',brand:'',kcal100:61,prot100:1.1,gluc100:13,lip100:0.5,fibr100:3},
     {id:'a37',name:'Huile d\'olive',brand:'',kcal100:900,prot100:0,gluc100:0,lip100:100,fibr100:0},
     {id:'a38',name:'Huile de lin',brand:'',kcal100:900,prot100:0,gluc100:0,lip100:100,fibr100:0},
     {id:'a39',name:'Avocat',brand:'',kcal100:160,prot100:2,gluc100:2,lip100:15,fibr100:6.8},
-    {id:'a40',name:'Amandes',brand:'',kcal100:575,prot100:21,gluc100:4,lip100:50,fibr100:12.5},
-    {id:'a41',name:'Noix',brand:'',kcal100:660,prot100:14.5,gluc100:3.5,lip100:65,fibr100:6.7},
-    {id:'a42',name:'Graines de chia',brand:'',kcal100:490,prot100:17,gluc100:42,lip100:31,fibr100:34},
+    {id:'a40',name:'Amandes',brand:'',kcal100:607,prot100:21,gluc100:6,lip100:52,fibr100:12.5},
+    {id:'a41',name:'Noix',brand:'',kcal100:654,prot100:15,gluc100:7,lip100:65,fibr100:6.7},
+    {id:'a42',name:'Graines de chia',brand:'',kcal100:486,prot100:17,gluc100:42,lip100:31,fibr100:34},
     {id:'a43',name:'Tofu ferme',brand:'',kcal100:80,prot100:9.3,gluc100:1.9,lip100:5,fibr100:0.3},
     {id:'a44',name:'Seitan',brand:'',kcal100:143,prot100:25,gluc100:14,lip100:1.9,fibr100:0.6},
     {id:'a45',name:'Chocolat noir 85%',brand:'',kcal100:570,prot100:11,gluc100:25,lip100:49,fibr100:10.9},
@@ -823,20 +847,21 @@ function loadApiKeyUI(){
 }
 
 // ============================================================
-// PHOTO IMPORT — analyse via Claude Vision API
+// PHOTO IMPORT — analyse via Claude Vision API (recto + verso)
 // ============================================================
-let photoBase64 = null;
-let photoMimeType = 'image/jpeg';
+let photos = [null, null]; // [{base64, mimeType}, null]
 
 function openScanModal(){
-  photoBase64 = null;
-  document.getElementById('photo-file-input').value='';
+  photos = [null, null];
+  document.getElementById('photo-file-input-1').value='';
+  document.getElementById('photo-file-input-2').value='';
   document.getElementById('scan-result').innerHTML='';
-  document.getElementById('photo-preview-wrap').style.display='none';
-  document.getElementById('photo-placeholder').style.display='block';
+  [1,2].forEach(n=>{
+    document.getElementById('photo-preview-wrap-'+n).style.display='none';
+    document.getElementById('photo-placeholder-'+n).style.display='flex';
+    document.getElementById('photo-dropzone-'+n).style.borderColor='var(--border)';
+  });
   document.getElementById('btn-analyze-photo').style.display='none';
-  const dz=document.getElementById('photo-dropzone');
-  dz.style.borderColor='var(--border)';
   openM('modal-scan');
 }
 
@@ -844,34 +869,31 @@ function closeScanModal(){
   closeM('modal-scan');
 }
 
-function onPhotoSelected(event){
+function onPhotoSelected(event, n){
   const file=event.target.files[0];
   if(!file)return;
-  // Afficher indicateur de compression
-  document.getElementById('scan-result').innerHTML='<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">⏳ Optimisation de l&rsquo;image…</div>';
+  document.getElementById('scan-result').innerHTML='<div style="text-align:center;padding:8px;color:var(--muted);font-size:12px">⏳ Optimisation…</div>';
   compressImage(file, 1200, 0.82).then(function(result){
-    photoBase64 = result.base64;
-    photoMimeType = 'image/jpeg';
-    // Preview
-    document.getElementById('photo-preview').src = 'data:image/jpeg;base64,' + result.base64;
-    document.getElementById('photo-preview-wrap').style.display='block';
-    document.getElementById('photo-placeholder').style.display='none';
-    document.getElementById('btn-analyze-photo').style.display='block';
-    document.getElementById('photo-dropzone').style.borderColor='var(--terra)';
-    document.getElementById('scan-result').innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center">✅ Image optimisée · '+result.kb+'KB</div>';
+    photos[n-1]={base64:result.base64, mimeType:'image/jpeg'};
+    document.getElementById('photo-preview-'+n).src='data:image/jpeg;base64,'+result.base64;
+    document.getElementById('photo-preview-wrap-'+n).style.display='block';
+    document.getElementById('photo-placeholder-'+n).style.display='none';
+    document.getElementById('photo-dropzone-'+n).style.borderColor='var(--terra)';
+    document.getElementById('photo-size-'+n).textContent='✅ '+result.kb+'KB';
+    document.getElementById('scan-result').innerHTML='';
+    if(photos[0])document.getElementById('btn-analyze-photo').style.display='block';
   }).catch(function(e){
-    // Fallback : lecture directe sans compression
     const reader=new FileReader();
     reader.onload=function(ev){
       const dataUrl=ev.target.result;
-      photoBase64=dataUrl.split(',')[1];
-      photoMimeType=file.type||'image/jpeg';
-      document.getElementById('photo-preview').src=dataUrl;
-      document.getElementById('photo-preview-wrap').style.display='block';
-      document.getElementById('photo-placeholder').style.display='none';
-      document.getElementById('btn-analyze-photo').style.display='block';
-      document.getElementById('photo-dropzone').style.borderColor='var(--terra)';
+      photos[n-1]={base64:dataUrl.split(',')[1], mimeType:file.type||'image/jpeg'};
+      document.getElementById('photo-preview-'+n).src=dataUrl;
+      document.getElementById('photo-preview-wrap-'+n).style.display='block';
+      document.getElementById('photo-placeholder-'+n).style.display='none';
+      document.getElementById('photo-dropzone-'+n).style.borderColor='var(--terra)';
+      document.getElementById('photo-size-'+n).textContent='';
       document.getElementById('scan-result').innerHTML='';
+      if(photos[0])document.getElementById('btn-analyze-photo').style.display='block';
     };
     reader.readAsDataURL(file);
   });
@@ -909,14 +931,13 @@ function compressImage(file, maxSize, quality){
 }
 
 async function analyzePhoto(){
-  if(!photoBase64){return;}
+  if(!photos[0]){return;}
   const res=document.getElementById('scan-result');
-  res.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="font-size:13px">Analyse en cours…</div></div>';
+  const nbPhotos = photos.filter(Boolean).length;
+  res.innerHTML=`<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="font-size:13px">Analyse de ${nbPhotos} photo${nbPhotos>1?'s':''} en cours…</div></div>`;
   document.getElementById('btn-analyze-photo').disabled=true;
 
-  const prompt=`Tu es un assistant nutrition. Analyse cette image qui est soit :
-- Une capture d'écran de MyFitnessPal montrant les informations nutritionnelles d'un produit
-- Une photo d'un emballage alimentaire avec le tableau nutritionnel
+  const prompt=`Tu es un assistant nutrition. Analyse ${nbPhotos===2?'ces deux images (recto et verso d\'un même emballage)':'cette image'} qui ${nbPhotos===2?'montrent':'montre'} un emballage alimentaire avec le tableau nutritionnel.
 
 Extrait UNIQUEMENT les informations suivantes et réponds en JSON pur (sans markdown, sans backticks) :
 {
@@ -938,19 +959,21 @@ Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "i
       document.getElementById('btn-analyze-photo').disabled=false;
       return;
     }
+
+    // Construire le contenu avec 1 ou 2 images
+    const content = [];
+    photos.forEach(p => {
+      if(p) content.push({type:'image',source:{type:'base64',media_type:p.mimeType,data:p.base64}});
+    });
+    content.push({type:'text',text:prompt});
+
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','x-api-key':apiKey},
       body:JSON.stringify({
         model:'claude-haiku-4-5-20251001',
         max_tokens:500,
-        messages:[{
-          role:'user',
-          content:[
-            {type:'image',source:{type:'base64',media_type:photoMimeType,data:photoBase64}},
-            {type:'text',text:prompt}
-          ]
-        }]
+        messages:[{role:'user',content}]
       })
     });
     const d=await r.json();
