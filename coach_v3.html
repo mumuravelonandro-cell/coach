@@ -70,16 +70,16 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 .rec-name{font-size:14px;font-weight:600;margin-bottom:7px}
 .rec-macros{display:flex;gap:6px;flex-wrap:wrap}
 /* INGR autocomplete */
-.ingr-row{display:flex;align-items:flex-start;gap:7px;margin-bottom:7px;position:relative}
-.ingr-autocomplete-wrap{flex:1;position:relative}
-.ingr-input{width:100%}
+.ingr-row{display:grid;grid-template-columns:1fr 56px 32px;align-items:center;gap:6px;margin-bottom:7px;position:relative}
+.ingr-autocomplete-wrap{position:relative;min-width:0;overflow:visible}
+.ingr-input{width:100%;min-width:0}
 .ingr-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--terra);border-radius:10px;max-height:180px;overflow-y:auto;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,0.1);margin-top:2px}
 .ingr-option{padding:9px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--cream)}
 .ingr-option:last-child{border-bottom:none}
 .ingr-option:hover,.ingr-option.highlighted{background:var(--cream)}
 .ingr-option-name{font-weight:500}
 .ingr-option-macros{font-size:11px;color:var(--muted)}
-.ingr-g{width:70px;flex-shrink:0}
+.ingr-g{width:100%;min-width:0;padding:8px 4px;text-align:center}
 /* MENU */
 .week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:18px}
 .day-pill{border-radius:9px;border:1.5px solid var(--border);padding:7px 3px;text-align:center;cursor:pointer;transition:all .15s;background:#fff}
@@ -235,12 +235,12 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
   <div class="card mb-14">
     <div class="flex-b mb-12">
       <div style="font-size:14px;font-weight:700">💧 Hydratation</div>
-      <div style="font-size:13px;font-weight:700;color:var(--proto)" id="water-disp">0 / 1500 ml</div>
+      <div style="font-size:13px;font-weight:700;color:var(--proto)" id="water-disp">0 / 1800 ml</div>
     </div>
     <div class="water-gourde" id="water-gourdes"></div>
     <div class="progress-bg" style="height:9px"><div class="progress-fill" id="water-bar" style="width:0%;background:var(--proto)"></div></div>
     <div class="flex-b" style="margin-top:4px">
-      <span class="text-m">0</span><span class="text-m">750 ml</span><span style="font-size:11px;color:var(--proto);font-weight:600">1 500 ml ✓</span>
+      <span class="text-m">0</span><span class="text-m">900 ml</span><span style="font-size:11px;color:var(--proto);font-weight:600">1 800 ml ✓</span>
     </div>
     <button onclick="resetWater()" style="margin-top:9px;font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:inherit">↺ Remettre à zéro</button>
   </div>
@@ -425,8 +425,8 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 const STORE_KEY = 'coachv2';
 const GOAL_KCAL = 968, GOAL_P = 110, GOAL_G = 87, GOAL_L = 20;
 const GOURDE_ML = 600;
-const GOURDE_COUNT = 2.5; // 2.5 gourdes = 1500ml
-const WATER_GOAL = 1500;
+const GOURDE_COUNT = 3; // 3 gourdes = 1800ml
+const WATER_GOAL = 1800;
 
 const SPORT_TYPES = [
   {key:'pilates',label:'Pilates',emoji:'🧘‍♀️',color:'#7A9E7E',bg:'#F0FAF0'},
@@ -458,7 +458,7 @@ const MEAL_LABELS = {'petit-dej':'🌅 Petit-dej','déjeuner':'☀️ Déjeuner'
 const GOLDEN_RULES = [
   {id:'cru',e:'⚖️',l:'Pesé CRU',d:'Tous les ingrédients pesés avant cuisson'},
   {id:'scan',e:'📱',l:'Tout tracké',d:'Chaque repas enregistré'},
-  {id:'eau',e:'💧',l:'2,4 L d\'eau',d:'4 gourdes de 600ml remplies'},
+  {id:'eau',e:'💧',l:'1,8 L d\'eau',d:'3 gourdes de 600ml remplies'},
   {id:'prot',e:'🥩',l:'Protéines en premier',d:'Commencer par la source protéinée'},
   {id:'repas',e:'🕐',l:'Pas de repas sauté',d:'3-4 prises alimentaires respectées'},
   {id:'lent',e:'🐢',l:'Mangé lentement',d:'20 min minimum par repas'},
@@ -710,10 +710,10 @@ async function startCamera(){
   const video=document.getElementById('scan-video');
   document.getElementById('scan-result').innerHTML='';
 
-  // Check BarcodeDetector API
-  if(!window.BarcodeDetector){
+  // Check mediaDevices support
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     document.getElementById('scan-result').innerHTML=`
-      <div class="alert-y"><span>⚠️</span><span>Ton navigateur ne supporte pas la lecture automatique. Utilise Chrome sur Android ou Safari 17+ sur iPhone, ou saisis le code manuellement.</span></div>`;
+      <div class="alert-y"><span>⚠️</span><span>Ton navigateur ne supporte pas l'accès à la caméra. Essaie Chrome ou Safari récent, ou saisis le code manuellement.</span></div>`;
     return;
   }
 
@@ -722,17 +722,28 @@ async function startCamera(){
       video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}
     });
     video.srcObject = scanStream;
+    // Force play for mobile browsers
+    try{ await video.play(); }catch(pe){}
     camArea.style.display='block';
     document.getElementById('scan-manual-area').style.display='none';
 
-    if(!barcodeDetector) barcodeDetector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']});
+    const hasBarcodeDetector = 'BarcodeDetector' in window;
+    if(hasBarcodeDetector && !barcodeDetector){
+      try{ barcodeDetector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']}); }catch(e){ barcodeDetector=null; }
+    }
 
     const canvas=document.getElementById('scan-canvas');
     const ctx=canvas.getContext('2d');
 
+    // Show hint if no auto-detect
+    if(!hasBarcodeDetector){
+      document.getElementById('scan-result').innerHTML=`
+        <div class="alert-y"><span>💡</span><span>Scan auto non disponible sur ce navigateur. Pointe la caméra vers le code-barres, puis saisis le code manuellement ci-dessous.</span></div>`;
+    }
+
     async function detectFrame(){
       if(!scanStream)return;
-      if(video.readyState===video.HAVE_ENOUGH_DATA){
+      if(barcodeDetector && video.readyState===video.HAVE_ENOUGH_DATA){
         canvas.width=video.videoWidth;canvas.height=video.videoHeight;
         ctx.drawImage(video,0,0);
         try{
@@ -750,10 +761,15 @@ async function startCamera(){
       scanAnimFrame=requestAnimationFrame(detectFrame);
     }
     video.addEventListener('loadedmetadata',()=>{ scanAnimFrame=requestAnimationFrame(detectFrame); },{once:true});
+    // Also start immediately in case loadedmetadata already fired
+    if(video.readyState>=video.HAVE_METADATA){ scanAnimFrame=requestAnimationFrame(detectFrame); }
   }catch(e){
     camArea.style.display='none';
     document.getElementById('scan-manual-area').style.display='block';
-    document.getElementById('scan-result').innerHTML=`<div style="text-align:center;padding:14px;color:var(--red)">❌ Impossible d'accéder à la caméra. Vérifie les permissions dans les réglages du navigateur.</div>`;
+    let msg='❌ Impossible d\'accéder à la caméra. Vérifie les permissions dans les réglages du navigateur.';
+    if(e.name==='NotAllowedError')msg='❌ Permission refusée. Autorise l\'accès à la caméra dans les réglages de ton navigateur.';
+    else if(e.name==='NotFoundError')msg='❌ Aucune caméra détectée sur cet appareil.';
+    document.getElementById('scan-result').innerHTML=`<div style="text-align:center;padding:14px;color:var(--red)">${msg}</div>`;
   }
 }
 
@@ -913,8 +929,8 @@ function addIngrRow(ing){
         autocomplete="off">
       <div class="ingr-dropdown hidden"></div>
     </div>
-    <input type="number" class="ingr-g" placeholder="g" min="1" max="2000" value="${ing&&ing.g||''}" oninput="updateRecCalc()" style="margin-top:0">
-    <button class="btn-icon" onclick="this.closest('.ingr-row').remove();updateRecCalc()" style="flex-shrink:0;margin-top:0">✕</button>`;
+    <input type="number" class="ingr-g" placeholder="g" min="1" max="2000" value="${ing&&ing.g||''}" oninput="updateRecCalc()">
+    <button class="btn-icon" onclick="this.closest('.ingr-row').remove();updateRecCalc()">✕</button>`;
   list.appendChild(row);
 }
 
@@ -1196,26 +1212,19 @@ function toggleRule(id){
 // Water - gourdes 600ml
 function renderWater(){
   const c=getTodayChecks();const w=c.water||0;
-  // 2 full gourdes + 1 half = 1500ml (2.5 × 600)
-  const SLOTS=[600,600,300]; // slot sizes: 600, 600, 300 (half gourde)
+  const SLOTS=[600,600,600];
   let cumul=0;
   const container=document.getElementById('water-gourdes');
   let html='';
   SLOTS.forEach((slotMl,i)=>{
-    const slotStart=cumul;const slotEnd=cumul+slotMl;
-    const filled=w>=slotEnd;const partial=w>slotStart&&w<slotEnd;
-    const pct=partial?Math.round((w-slotStart)/slotMl*100):0;
-    const isHalf=slotMl===300;
-    html+=`<div class="wg-block ${filled?'filled':''}" onclick="toggleGourde(${slotEnd})" title="${slotMl}ml" style="${isHalf?'width:28px;':''}">
-      <span style="font-size:${isHalf?'16':'20'}px">${filled?'🫙':(partial?'🫗':'⬜')}</span>
-      <span style="font-size:${isHalf?'9':'11'}px">${isHalf?'½':slotMl+'ml'}</span>
+    const slotEnd=cumul+slotMl;
+    const filled=w>=slotEnd;
+    html+=`<div class="wg-block ${filled?'filled':''}" onclick="toggleGourde(${slotEnd})" title="${slotMl}ml">
+      <span style="font-size:20px">${filled?'🫙':'⬜'}</span>
+      <span style="font-size:11px">600ml</span>
     </div>`;
     cumul+=slotMl;
   });
-  html+=`<div style="display:flex;flex-direction:column;gap:5px;margin-left:4px">
-    <button onclick="addWater(600)" style="padding:5px 9px;border:1.5px solid var(--proto);border-radius:8px;background:#fff;color:var(--proto);font-size:11px;font-weight:700;cursor:pointer">+600</button>
-    <button onclick="addWater(250)" style="padding:5px 9px;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--muted);font-size:11px;cursor:pointer">+250</button>
-  </div>`;
   container.innerHTML=html;
   document.getElementById('water-disp').textContent=`${w} / ${WATER_GOAL} ml`;
   document.getElementById('water-bar').style.width=Math.min(w/WATER_GOAL*100,100)+'%';
@@ -1226,7 +1235,7 @@ function toggleGourde(upToMl){
   const c=getTodayChecks();const w=c.water||0;
   // if already filled up to this point → unfill to previous slot
   if(w>=upToMl){
-    const SLOTS=[600,600,300];let prev=0;
+    const SLOTS=[600,600,600];let prev=0;
     for(const s of SLOTS){if(prev+s===upToMl){c.water=prev;break;}prev+=s;}
   } else {
     c.water=upToMl;
