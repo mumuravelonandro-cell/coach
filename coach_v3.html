@@ -817,20 +817,65 @@ function closeScanModal(){
 function onPhotoSelected(event){
   const file=event.target.files[0];
   if(!file)return;
-  photoMimeType=file.type||'image/jpeg';
-  const reader=new FileReader();
-  reader.onload=function(e){
-    const dataUrl=e.target.result;
-    photoBase64=dataUrl.split(',')[1];
+  // Afficher indicateur de compression
+  document.getElementById('scan-result').innerHTML='<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">⏳ Optimisation de l&rsquo;image…</div>';
+  compressImage(file, 1200, 0.82).then(function(result){
+    photoBase64 = result.base64;
+    photoMimeType = 'image/jpeg';
     // Preview
-    document.getElementById('photo-preview').src=dataUrl;
+    document.getElementById('photo-preview').src = 'data:image/jpeg;base64,' + result.base64;
     document.getElementById('photo-preview-wrap').style.display='block';
     document.getElementById('photo-placeholder').style.display='none';
     document.getElementById('btn-analyze-photo').style.display='block';
     document.getElementById('photo-dropzone').style.borderColor='var(--terra)';
-    document.getElementById('scan-result').innerHTML='';
-  };
-  reader.readAsDataURL(file);
+    document.getElementById('scan-result').innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center">✅ Image optimisée · '+result.kb+'KB</div>';
+  }).catch(function(e){
+    // Fallback : lecture directe sans compression
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      const dataUrl=ev.target.result;
+      photoBase64=dataUrl.split(',')[1];
+      photoMimeType=file.type||'image/jpeg';
+      document.getElementById('photo-preview').src=dataUrl;
+      document.getElementById('photo-preview-wrap').style.display='block';
+      document.getElementById('photo-placeholder').style.display='none';
+      document.getElementById('btn-analyze-photo').style.display='block';
+      document.getElementById('photo-dropzone').style.borderColor='var(--terra)';
+      document.getElementById('scan-result').innerHTML='';
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function compressImage(file, maxSize, quality){
+  return new Promise(function(resolve, reject){
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(e){
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = function(){
+        try{
+          const canvas = document.createElement('canvas');
+          let w = img.width, h = img.height;
+          // Réduire si > maxSize
+          if(w > maxSize || h > maxSize){
+            if(w > h){ h = Math.round(h * maxSize / w); w = maxSize; }
+            else      { w = Math.round(w * maxSize / h); h = maxSize; }
+          }
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const base64 = dataUrl.split(',')[1];
+          const kb = Math.round(base64.length * 0.75 / 1024);
+          resolve({base64, kb});
+        }catch(err){ reject(err); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 async function analyzePhoto(){
@@ -861,7 +906,7 @@ Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "i
       method:'POST',
       headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-5-20251001',
+        model:'claude-haiku-4-5-20251001',
         max_tokens:500,
         messages:[{
           role:'user',
@@ -873,6 +918,7 @@ Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "i
       })
     });
     const d=await r.json();
+    if(!r.ok) throw new Error((d.error&&d.error.message)||('HTTP '+r.status));
     const text=d.content?.find(c=>c.type==='text')?.text||'';
 
     let obj;
@@ -926,7 +972,8 @@ Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "i
         </div>`;
     }
   }catch(e){
-    res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ Erreur lors de l'analyse. Réessaie.</div>`;
+    const msg = e && e.message ? e.message : String(e);
+    res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ Erreur lors de l'analyse.<br><span style="font-size:11px;color:var(--muted)">${msg}</span><br><span style="font-size:11px;color:var(--muted)">Réessaie avec une photo plus nette.</span></div>`;
   }
   document.getElementById('btn-analyze-photo').disabled=false;
 }
