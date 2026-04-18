@@ -129,6 +129,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
   <button class="nav-tab" onclick="showTab('menu',this)">📅 Menu</button>
   <button class="nav-tab" onclick="showTab('suivi',this)">📊 Suivi</button>
   <button class="nav-tab" onclick="showTab('sport',this)">🏋️ Sport</button>
+  <button class="nav-tab" onclick="showTab('tdee',this)">🎯 Objectifs</button>
 </nav>
 
 <!-- ===== ALIMENTS ===== -->
@@ -181,7 +182,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         <div class="ring-text"><div class="ring-num" id="kcal-val">0</div><div class="ring-sub">kcal</div></div>
       </div>
       <div style="flex:1">
-        <div class="flex-b mb-8"><span style="font-size:13px;font-weight:600">Apport du jour</span><span class="text-m" id="kcal-goal-lbl">obj. 968 kcal</span></div>
+        <div class="flex-b mb-8"><span style="font-size:13px;font-weight:600">Apport du jour</span><span class="text-m" id="kcal-goal-lbl">obj. — kcal</span></div>
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--proto)">P</span><div class="mbar-bg"><div class="mbar" id="bar-p" style="width:0%;background:var(--proto)"></div></div><span class="mbar-val" id="val-p">0g</span></div>
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--gold)">G</span><div class="mbar-bg"><div class="mbar" id="bar-g" style="width:0%;background:var(--gold)"></div></div><span class="mbar-val" id="val-g">0g</span></div>
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--terra)">L</span><div class="mbar-bg"><div class="mbar" id="bar-l" style="width:0%;background:var(--terra)"></div></div><span class="mbar-val" id="val-l">0g</span></div>
@@ -259,6 +260,104 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <div id="page-sport" class="page">
   <div id="sport-root"></div>
 </div>
+
+<!-- ===== TDEE / OBJECTIFS ===== -->
+<div id="page-tdee" class="page">
+  <div class="sec-title mb-4">🎯 Calculateur d'objectifs</div>
+  <div class="sec-sub mb-20">Basé sur ton métabolisme · macros personnalisables</div>
+
+  <!-- Profil -->
+  <div class="card mb-14">
+    <div style="font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px"><span>👤</span> Ton profil</div>
+    <div class="g2 gap-8 mb-12">
+      <div><label>Âge</label><input type="number" id="tdee-age" min="15" max="80" placeholder="ex: 30" oninput="calcTDEE()"></div>
+      <div><label>Taille (cm)</label><input type="number" id="tdee-height" min="140" max="220" placeholder="ex: 165" oninput="calcTDEE()"></div>
+      <div><label>Poids actuel (kg)</label><input type="number" id="tdee-weight" min="30" max="200" step="0.1" placeholder="ex: 56" oninput="calcTDEE()"></div>
+      <div><label>Poids cible (kg)</label><input type="number" id="tdee-goal-weight" min="30" max="200" step="0.1" placeholder="ex: 46" oninput="calcTDEE()"></div>
+    </div>
+    <div class="mb-12">
+      <label>Sexe</label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button id="tdee-sex-f" onclick="setTdeeSex('f')" class="btn btn-dark btn-sm" style="flex:1">♀ Femme</button>
+        <button id="tdee-sex-m" onclick="setTdeeSex('m')" class="btn btn-outline btn-sm" style="flex:1">♂ Homme</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activité -->
+  <div class="card mb-14">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px"><span>🏃</span> Niveau d'activité</div>
+    <div id="tdee-activity-btns" style="display:flex;flex-direction:column;gap:7px"></div>
+  </div>
+
+  <!-- Objectif -->
+  <div class="card mb-14">
+    <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px"><span>⚖️</span> Objectif</div>
+    <div id="tdee-goal-btns" style="display:flex;flex-direction:column;gap:7px"></div>
+  </div>
+
+  <!-- Résultats -->
+  <div class="card mb-14" id="tdee-results" style="display:none">
+    <div style="font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px"><span>📊</span> Tes besoins calculés</div>
+    <!-- Metabolisme de base -->
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px">
+      <span>Métabolisme de base (BMR)</span><span id="tdee-bmr-val" style="font-weight:600;color:var(--dark)">—</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:14px">
+      <span>TDEE (maintenance)</span><span id="tdee-maint-val" style="font-weight:600;color:var(--dark)">—</span>
+    </div>
+    <!-- Objectif calorique -->
+    <div style="background:linear-gradient(135deg,#FFF5F0,#FFE8DC);border-radius:14px;padding:16px;text-align:center;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:4px">Objectif kcal / jour</div>
+      <div style="font-size:38px;font-weight:900;color:var(--terra)" id="tdee-target-kcal">—</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px" id="tdee-deficit-lbl">—</div>
+    </div>
+    <!-- Temps estimé -->
+    <div id="tdee-time-estimate" style="background:#F0FAF0;border-radius:12px;padding:11px 14px;font-size:12px;color:var(--sage);font-weight:600;margin-bottom:16px;display:none;text-align:center"></div>
+
+    <!-- Répartition macros -->
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px;letter-spacing:.5px;color:var(--dark)">Répartition des macros</div>
+    <!-- Sliders -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:700;color:var(--proto)">PROTÉINES</span>
+        <span style="font-size:12px;font-weight:700;color:var(--proto)" id="tdee-prot-pct">30%</span>
+      </div>
+      <input type="range" id="slider-prot" min="15" max="55" value="30" oninput="onMacroSlide('prot')" style="width:100%;accent-color:var(--proto)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span id="tdee-prot-g">—g</span><span id="tdee-prot-kcal">— kcal</span></div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:700;color:var(--gold)">GLUCIDES</span>
+        <span style="font-size:12px;font-weight:700;color:var(--gold)" id="tdee-gluc-pct">40%</span>
+      </div>
+      <input type="range" id="slider-gluc" min="10" max="65" value="40" oninput="onMacroSlide('gluc')" style="width:100%;accent-color:var(--gold)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span id="tdee-gluc-g">—g</span><span id="tdee-gluc-kcal">— kcal</span></div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:700;color:var(--terra)">LIPIDES</span>
+        <span style="font-size:12px;font-weight:700;color:var(--terra)" id="tdee-lip-pct">30%</span>
+      </div>
+      <input type="range" id="slider-lip" min="15" max="45" value="30" oninput="onMacroSlide('lip')" style="width:100%;accent-color:var(--terra)">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span id="tdee-lip-g">—g</span><span id="tdee-lip-kcal">— kcal</span></div>
+    </div>
+    <!-- Total check -->
+    <div id="tdee-macro-total" style="text-align:center;font-size:12px;font-weight:600;padding:8px;border-radius:10px;margin-bottom:16px"></div>
+    <!-- Bar visuelle -->
+    <div style="height:12px;border-radius:10px;overflow:hidden;display:flex;margin-bottom:16px" id="tdee-macro-bar"></div>
+    <!-- Appliquer -->
+    <button class="btn btn-dark w100" onclick="applyTdeeGoals()">✅ Appliquer ces objectifs à l'app</button>
+  </div>
+
+  <!-- Placeholder si pas encore calculé -->
+  <div id="tdee-placeholder" class="empty" style="padding:48px 16px">
+    <div class="ei">🧮</div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">Remplis ton profil pour calculer</div>
+    <div class="text-m">Âge, taille, poids et activité sont nécessaires</div>
+  </div>
+</div>
+
 
 <!-- ========= MODALS ========= -->
 
@@ -423,7 +522,12 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 // CONSTANTS
 // ============================================================
 const STORE_KEY = 'coachv2';
-const GOAL_KCAL = 968, GOAL_P = 110, GOAL_G = 87, GOAL_L = 20;
+// Goals — dynamiques via l'onglet Objectifs
+function getGoal(k){ return (S.goals&&S.goals[k]) || {kcal:968,prot:110,gluc:87,lip:20}[k]; }
+function GOAL_KCAL(){ return getGoal('kcal'); }
+function GOAL_P()   { return getGoal('prot'); }
+function GOAL_G()   { return getGoal('gluc'); }
+function GOAL_L()   { return getGoal('lip');  }
 const GOURDE_ML = 600;
 const GOURDE_COUNT = 3; // 3 gourdes = 1800ml
 const WATER_GOAL = 1800;
@@ -496,7 +600,9 @@ function emptyStore(){
     recipes: defaultRecipes(),
     menu:{},
     suivi:{weights:[],dailyChecks:{}},
-    sport:{template:defaultSportTemplate(),weeks:{},weekGoals:{}}
+    sport:{template:defaultSportTemplate(),weeks:{},weekGoals:{}},
+    tdeeProfile:{},
+    goals:{kcal:968,prot:110,gluc:87,lip:20}
   };
 }
 function save(){localStorage.setItem(STORE_KEY,JSON.stringify(S));}
@@ -615,6 +721,7 @@ function showTab(tab,btn){
   if(tab==='menu')renderMenu();
   if(tab==='suivi')renderSuivi();
   if(tab==='sport')renderSport();
+  if(tab==='tdee')initTDEE();
 }
 
 // ============================================================
@@ -752,9 +859,9 @@ Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "i
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-4-5-20251001',
         max_tokens:500,
         messages:[{
           role:'user',
@@ -1039,7 +1146,7 @@ function renderMenu(){
     const isTd=dk===today, isSel=dk===curMenuDay;
     return`<div class="day-pill ${isSel?'active':''}" onclick="selMenuDay('${dk}')">
       <div class="dn" style="${isTd?'color:var(--terra)':''}">${d}</div>
-      <div class="dk" style="color:${kcal>0?(kcal>GOAL_KCAL?'var(--red)':'var(--sage)'):'var(--border)'}">${kcal>0?kcal:'-'}</div>
+      <div class="dk" style="color:${kcal>0?(kcal>GOAL_KCAL()?'var(--red)':'var(--sage)'):'var(--border)'}">${kcal>0?kcal:'-'}</div>
     </div>`;
   }).join('');
 
@@ -1055,16 +1162,17 @@ function renderDayMenu(){
   let tp=0,tg=0,tl=0,tk=0;
   MEAL_SLOTS.forEach(slot=>{const rid=dayMenu[slot];if(rid){const r=S.recipes.find(x=>x.id===rid);if(r){const m=calcMacros(r.ingredients);tp+=m.prot;tg+=m.gluc;tl+=m.lip;tk+=m.kcal;}}});
   // Ring
-  const pct=Math.min(tk/GOAL_KCAL,1),circ=195;
+  const pct=Math.min(tk/GOAL_KCAL(),1),circ=195;
   document.getElementById('kcal-arc').style.strokeDashoffset=circ-pct*circ;
-  document.getElementById('kcal-arc').style.stroke=tk>GOAL_KCAL?'var(--red)':'var(--terra)';
+  document.getElementById('kcal-arc').style.stroke=tk>GOAL_KCAL()?'var(--red)':'var(--terra)';
   document.getElementById('kcal-val').textContent=tk;
-  document.getElementById('bar-p').style.width=Math.min(tp/GOAL_P*100,100)+'%';
-  document.getElementById('bar-g').style.width=Math.min(tg/GOAL_G*100,100)+'%';
-  document.getElementById('bar-l').style.width=Math.min(tl/GOAL_L*100,100)+'%';
+  document.getElementById('bar-p').style.width=Math.min(tp/GOAL_P()*100,100)+'%';
+  document.getElementById('bar-g').style.width=Math.min(tg/GOAL_G()*100,100)+'%';
+  document.getElementById('bar-l').style.width=Math.min(tl/GOAL_L()*100,100)+'%';
   document.getElementById('val-p').textContent=tp+'g';
   document.getElementById('val-g').textContent=tg+'g';
   document.getElementById('val-l').textContent=tl+'g';
+  document.getElementById('kcal-goal-lbl').textContent='obj. '+GOAL_KCAL()+' kcal';
   // Day title
   const dayIdx=(new Date(curMenuDay+'T12:00:00')).getDay();
   const dayName=DAYS_FULL[dayIdx===0?6:dayIdx-1];
@@ -1290,9 +1398,9 @@ async function renderCoachMsg(){
   const dc=Object.values(c.rules||{}).filter(Boolean).length;
   const streak=calcStreak();const ws=calcWeekScore();const water=c.water||0;
   const lastW=S.suivi.weights.length>0?S.suivi.weights[S.suivi.weights.length-1]:null;
-  const prompt=`Tu es une coach sportive et nutritionniste bienveillante mais exigeante. Tu coaches quelqu'un qui veut passer de 56kg à 46kg en force, objectif 968 kcal/jour (110g P, 87g G, 20g L). Données du jour : streak ${streak}j, score semaine ${ws}/100, règles cochées ${dc}/8, eau ${water}ml/${WATER_GOAL}ml, dernier poids ${lastW?lastW.val+'kg':'non renseigné'}. Écris un message de motivation court et personnalisé (3-4 phrases max). Tu dois être directe, honnête, encourageante mais exigeante. Commence directement sans salutation. Parle en "tu".`;
+  const prompt=`Tu es une coach sportive et nutritionniste bienveillante mais exigeante. Tu coaches quelqu'un qui veut passer de 56kg à 46kg en force, objectif ${GOAL_KCAL()} kcal/jour (${GOAL_P()}g P, ${GOAL_G()}g G, ${GOAL_L()}g L). Données du jour : streak ${streak}j, score semaine ${ws}/100, règles cochées ${dc}/8, eau ${water}ml/${WATER_GOAL}ml, dernier poids ${lastW?lastW.val+'kg':'non renseigné'}. Écris un message de motivation court et personnalisé (3-4 phrases max). Tu dois être directe, honnête, encourageante mais exigeante. Commence directement sans salutation. Parle en "tu".`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();
     el.textContent=d.content?.find(c=>c.type==='text')?.text||'Continue, tu construis ta meilleure version !';
     coachLoaded=true;
@@ -1637,6 +1745,207 @@ function deleteSportSession(){
   if(sportModalIsTemplate)S.sport.template[sportModalDayIdx]=(S.sport.template[sportModalDayIdx]||[]).filter(x=>x.id!=sportModalSessionId);
   else if(S.sport.weeks&&S.sport.weeks[wk])S.sport.weeks[wk][sportModalDayIdx]=(S.sport.weeks[wk][sportModalDayIdx]||[]).filter(x=>x.id!=sportModalSessionId);
   save();closeM('modal-sport');renderSport();
+}
+
+// ============================================================
+// TDEE CALCULATOR
+// ============================================================
+const TDEE_ACTIVITY = [
+  {key:'sedentary', label:'Sédentaire', sub:'Peu ou pas d\'exercice', factor:1.2, emoji:'🪑'},
+  {key:'light',     label:'Légèrement actif', sub:'1-3 séances/sem', factor:1.375, emoji:'🚶'},
+  {key:'moderate',  label:'Modérément actif', sub:'3-5 séances/sem', factor:1.55, emoji:'🏃'},
+  {key:'active',    label:'Très actif', sub:'6-7 séances/sem', factor:1.725, emoji:'🔥'},
+  {key:'extreme',   label:'Extrêmement actif', sub:'Athlète / 2x/jour', factor:1.9, emoji:'🏆'},
+];
+const TDEE_GOALS = [
+  {key:'extreme_cut', label:'Coupe agressive', sub:'-25% | max perte de graisse', pct:-0.25, emoji:'⚡'},
+  {key:'cut',         label:'Perte de poids', sub:'-20% | recommandé', pct:-0.20, emoji:'📉'},
+  {key:'mild_cut',    label:'Perte douce', sub:'-10% | confort + résultats', pct:-0.10, emoji:'🍃'},
+  {key:'maintain',    label:'Maintenance', sub:'0% | stabilisation', pct:0, emoji:'⚖️'},
+  {key:'bulk',        label:'Prise de masse', sub:'+10% | recomposition', pct:0.10, emoji:'💪'},
+];
+let tdeeSex = 'f';
+let tdeeActivity = 'moderate';
+let tdeeGoal = 'cut';
+let tdeeMacroPct = {prot:30, gluc:40, lip:30};
+
+function initTDEE(){
+  // Load saved TDEE profile if any
+  const saved = S.tdeeProfile;
+  if(saved){
+    if(saved.age) document.getElementById('tdee-age').value = saved.age;
+    if(saved.height) document.getElementById('tdee-height').value = saved.height;
+    if(saved.weight) document.getElementById('tdee-weight').value = saved.weight;
+    if(saved.goalWeight) document.getElementById('tdee-goal-weight').value = saved.goalWeight;
+    if(saved.sex) tdeeSex = saved.sex;
+    if(saved.activity) tdeeActivity = saved.activity;
+    if(saved.goal) tdeeGoal = saved.goal;
+    if(saved.macroPct) tdeeMacroPct = {...saved.macroPct};
+  }
+  renderTdeeActivityBtns();
+  renderTdeeGoalBtns();
+  updateTdeeSexBtns();
+  updateMacroSliders();
+  calcTDEE();
+}
+
+function setTdeeSex(s){ tdeeSex=s; updateTdeeSexBtns(); calcTDEE(); }
+function updateTdeeSexBtns(){
+  document.getElementById('tdee-sex-f').className='btn btn-sm '+(tdeeSex==='f'?'btn-dark':'btn-outline');
+  document.getElementById('tdee-sex-f').style.flex='1';
+  document.getElementById('tdee-sex-m').className='btn btn-sm '+(tdeeSex==='m'?'btn-dark':'btn-outline');
+  document.getElementById('tdee-sex-m').style.flex='1';
+}
+
+function renderTdeeActivityBtns(){
+  document.getElementById('tdee-activity-btns').innerHTML = TDEE_ACTIVITY.map(a=>{
+    const sel = tdeeActivity===a.key;
+    return `<div onclick="setTdeeActivity('${a.key}')" style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:12px;border:1.5px solid ${sel?'var(--terra)':'var(--border)'};background:${sel?'#FFF5F0':'#fff'};cursor:pointer;transition:all .15s">
+      <span style="font-size:18px;flex-shrink:0">${a.emoji}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:${sel?'var(--terra)':'var(--dark)'}">${a.label}</div><div style="font-size:11px;color:var(--muted)">${a.sub}</div></div>
+      ${sel?'<span style="color:var(--terra);font-size:14px">●</span>':'<span style="color:var(--border);font-size:14px">○</span>'}
+    </div>`;
+  }).join('');
+}
+
+function renderTdeeGoalBtns(){
+  document.getElementById('tdee-goal-btns').innerHTML = TDEE_GOALS.map(g=>{
+    const sel = tdeeGoal===g.key;
+    const col = g.pct<0?'var(--terra)':g.pct>0?'var(--sage)':'var(--gold)';
+    return `<div onclick="setTdeeGoal('${g.key}')" style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:12px;border:1.5px solid ${sel?col:'var(--border)'};background:${sel?col+'18':'#fff'};cursor:pointer;transition:all .15s">
+      <span style="font-size:18px;flex-shrink:0">${g.emoji}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:${sel?col:'var(--dark)'}">${g.label}</div><div style="font-size:11px;color:var(--muted)">${g.sub}</div></div>
+      ${sel?`<span style="color:${col};font-size:14px">●</span>`:'<span style="color:var(--border);font-size:14px">○</span>'}
+    </div>`;
+  }).join('');
+}
+
+function setTdeeActivity(k){ tdeeActivity=k; renderTdeeActivityBtns(); calcTDEE(); }
+function setTdeeGoal(k){ tdeeGoal=k; renderTdeeGoalBtns(); calcTDEE(); }
+
+function calcTDEE(){
+  const age = parseFloat(document.getElementById('tdee-age').value)||0;
+  const height = parseFloat(document.getElementById('tdee-height').value)||0;
+  const weight = parseFloat(document.getElementById('tdee-weight').value)||0;
+  const goalWeight = parseFloat(document.getElementById('tdee-goal-weight').value)||0;
+  const res = document.getElementById('tdee-results');
+  const ph = document.getElementById('tdee-placeholder');
+  if(!age||!height||!weight){ res.style.display='none'; ph.style.display='block'; return; }
+
+  // Mifflin-St Jeor
+  let bmr;
+  if(tdeeSex==='f') bmr = 10*weight + 6.25*height - 5*age - 161;
+  else              bmr = 10*weight + 6.25*height - 5*age + 5;
+  bmr = Math.round(bmr);
+
+  const actFactor = TDEE_ACTIVITY.find(a=>a.key===tdeeActivity)?.factor||1.55;
+  const maintenance = Math.round(bmr * actFactor);
+
+  const goalPct = TDEE_GOALS.find(g=>g.key===tdeeGoal)?.pct||(-0.20);
+  const target = Math.round(maintenance * (1 + goalPct));
+
+  // Estimate time to goal
+  let timeEst = '';
+  if(goalWeight && goalWeight < weight && goalPct < 0){
+    const deficit = maintenance - target;
+    const kgToLose = weight - goalWeight;
+    const weeksNeeded = Math.round((kgToLose * 7700) / (deficit * 7));
+    timeEst = `🗓️ Estimation : ~${weeksNeeded} semaines pour atteindre ${goalWeight} kg`;
+  }
+
+  document.getElementById('tdee-bmr-val').textContent = bmr + ' kcal';
+  document.getElementById('tdee-maint-val').textContent = maintenance + ' kcal';
+  document.getElementById('tdee-target-kcal').textContent = target;
+  const diff = target - maintenance;
+  document.getElementById('tdee-deficit-lbl').textContent = (diff<0?'Déficit ':'Surplus ') + Math.abs(diff) + ' kcal/jour';
+
+  const timeEl = document.getElementById('tdee-time-estimate');
+  if(timeEst){ timeEl.textContent=timeEst; timeEl.style.display='block'; }
+  else timeEl.style.display='none';
+
+  res.style.display='block';
+  ph.style.display='none';
+
+  // Save partial profile
+  if(!S.tdeeProfile) S.tdeeProfile={};
+  S.tdeeProfile = {...S.tdeeProfile, age, height, weight, goalWeight, sex:tdeeSex, activity:tdeeActivity, goal:tdeeGoal};
+  save();
+
+  renderMacros(target);
+}
+
+function updateMacroSliders(){
+  document.getElementById('slider-prot').value = tdeeMacroPct.prot;
+  document.getElementById('slider-gluc').value = tdeeMacroPct.gluc;
+  document.getElementById('slider-lip').value  = tdeeMacroPct.lip;
+}
+
+function onMacroSlide(which){
+  const prot = parseInt(document.getElementById('slider-prot').value);
+  const gluc = parseInt(document.getElementById('slider-gluc').value);
+  const lip  = parseInt(document.getElementById('slider-lip').value);
+  const total = prot + gluc + lip;
+  // Normalize so they sum to 100
+  tdeeMacroPct = {
+    prot: Math.round(prot/total*100),
+    gluc: Math.round(gluc/total*100),
+    lip:  100 - Math.round(prot/total*100) - Math.round(gluc/total*100)
+  };
+  document.getElementById('slider-prot').value = tdeeMacroPct.prot;
+  document.getElementById('slider-gluc').value = tdeeMacroPct.gluc;
+  document.getElementById('slider-lip').value  = tdeeMacroPct.lip;
+  const target = parseInt(document.getElementById('tdee-target-kcal').textContent)||0;
+  renderMacros(target);
+}
+
+function renderMacros(targetKcal){
+  const p = tdeeMacroPct.prot, g = tdeeMacroPct.gluc, l = tdeeMacroPct.lip;
+  document.getElementById('tdee-prot-pct').textContent = p+'%';
+  document.getElementById('tdee-gluc-pct').textContent = g+'%';
+  document.getElementById('tdee-lip-pct').textContent  = l+'%';
+
+  const protG = Math.round(targetKcal * p/100 / 4);
+  const glucG = Math.round(targetKcal * g/100 / 4);
+  const lipG  = Math.round(targetKcal * l/100 / 9);
+  const protKcal = Math.round(protG * 4);
+  const glucKcal = Math.round(glucG * 4);
+  const lipKcal  = Math.round(lipG  * 9);
+
+  document.getElementById('tdee-prot-g').textContent    = protG+'g';
+  document.getElementById('tdee-prot-kcal').textContent = protKcal+' kcal';
+  document.getElementById('tdee-gluc-g').textContent    = glucG+'g';
+  document.getElementById('tdee-gluc-kcal').textContent = glucKcal+' kcal';
+  document.getElementById('tdee-lip-g').textContent     = lipG+'g';
+  document.getElementById('tdee-lip-kcal').textContent  = lipKcal+' kcal';
+
+  const totalPct = p+g+l;
+  const totalClass = totalPct===100 ? 'color:var(--sage)' : 'color:var(--red)';
+  document.getElementById('tdee-macro-total').style.cssText = `text-align:center;font-size:12px;font-weight:600;padding:8px;border-radius:10px;margin-bottom:16px;background:${totalPct===100?'#F0FAF0':'#FEF0F0'};${totalClass}`;
+  document.getElementById('tdee-macro-total').textContent = totalPct===100 ? '✅ Total : 100% — Parfait !' : `⚠️ Total : ${totalPct}% — Les macros doivent sommer à 100%`;
+
+  document.getElementById('tdee-macro-bar').innerHTML =
+    `<div style="width:${p}%;background:var(--proto);transition:width .3s"></div>
+     <div style="width:${g}%;background:var(--gold);transition:width .3s"></div>
+     <div style="width:${l}%;background:var(--terra);transition:width .3s"></div>`;
+
+  // Save macros
+  if(!S.tdeeProfile) S.tdeeProfile={};
+  S.tdeeProfile.macroPct = {...tdeeMacroPct};
+  S.tdeeProfile.macrosG = {prot:protG, gluc:glucG, lip:lipG};
+  S.tdeeProfile.targetKcal = targetKcal;
+}
+
+function applyTdeeGoals(){
+  if(!S.tdeeProfile||!S.tdeeProfile.targetKcal) return alert('Calcule d\'abord tes besoins.');
+  const t = S.tdeeProfile.targetKcal;
+  const p = S.tdeeProfile.macrosG?.prot || Math.round(t*.30/4);
+  const g = S.tdeeProfile.macrosG?.gluc || Math.round(t*.40/4);
+  const l = S.tdeeProfile.macrosG?.lip  || Math.round(t*.30/9);
+  S.goals = {kcal:t, prot:p, gluc:g, lip:l};
+  save();
+  // Re-render menu to pick up new goals
+  renderMenu();
+  alert(`✅ Objectifs appliqués !\n${t} kcal · ${p}g P · ${g}g G · ${l}g L`);
 }
 
 // ============================================================
