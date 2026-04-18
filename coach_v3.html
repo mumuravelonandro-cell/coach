@@ -134,9 +134,9 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <!-- ===== ALIMENTS ===== -->
 <div id="page-aliments" class="page active">
   <div class="flex-b mb-20">
-    <div><div class="sec-title">Bibliothèque d'aliments</div><div class="sec-sub">Base Cronometer · modifiable · scan code-barres</div></div>
+    <div><div class="sec-title">Bibliothèque d'aliments</div><div class="sec-sub">Base Cronometer · modifiable · import photo</div></div>
     <div class="flex gap-8">
-      <button class="btn btn-outline btn-sm" onclick="openScanModal()">📷 Scanner</button>
+      <button class="btn btn-outline btn-sm" onclick="openScanModal()">📸 Photo</button>
       <button class="btn btn-dark btn-sm" onclick="openAlimentModal()">+ Aliment</button>
     </div>
   </div>
@@ -286,29 +286,37 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
   </div>
 </div>
 
-<!-- Scan Modal -->
+<!-- Photo Import Modal -->
 <div class="modal-overlay hidden" id="modal-scan">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">📷 Scanner un code-barres<button class="btn-icon" onclick="closeScanModal()">✕</button></div>
-    <!-- html5-qrcode container -->
-    <div id="scan-reader-area" style="display:none;margin-bottom:14px">
-      <div id="scan-reader" style="border-radius:14px;overflow:hidden;width:100%"></div>
-      <button onclick="stopCamera()" style="margin-top:9px;width:100%;padding:8px;background:#fff;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:12px;color:var(--muted);cursor:pointer">✕ Arrêter la caméra</button>
+    <div class="modal-title">📸 Importer depuis une photo<button class="btn-icon" onclick="closeScanModal()">✕</button></div>
+
+    <!-- Instructions -->
+    <div style="background:#F7F3EE;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6">
+      📱 <strong style="color:var(--dark)">2 options :</strong><br>
+      • Capture d'écran MyFitnessPal après scan<br>
+      • Photo de l'emballage (tableau nutritionnel)
     </div>
-    <!-- Manual input -->
-    <div id="scan-manual-area">
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button onclick="startCamera()" id="btn-start-camera" style="flex:1;padding:10px;background:var(--dark);border:none;border-radius:10px;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">
-          <span>📷</span><span>Utiliser la caméra</span>
-        </button>
+
+    <!-- Drop zone / file input -->
+    <div id="photo-dropzone" onclick="document.getElementById('photo-file-input').click()"
+      style="border:2px dashed var(--border);border-radius:14px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px;background:#fff">
+      <div id="photo-preview-wrap" style="display:none;margin-bottom:10px">
+        <img id="photo-preview" style="max-width:100%;max-height:200px;border-radius:10px;object-fit:contain">
       </div>
-      <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px">Ou saisir manuellement</div>
-      <div class="flex gap-8">
-        <input type="text" id="scan-barcode" placeholder="Ex: 3017620422003" inputmode="numeric">
-        <button class="btn btn-terra btn-sm" onclick="lookupBarcode()">Chercher</button>
+      <div id="photo-placeholder">
+        <div style="font-size:32px;margin-bottom:8px">📷</div>
+        <div style="font-size:13px;font-weight:600;color:var(--dark);margin-bottom:4px">Appuyer pour choisir une photo</div>
+        <div style="font-size:11px;color:var(--muted)">Emballage ou capture MyFitnessPal</div>
       </div>
     </div>
-    <div id="scan-result" style="margin-top:12px"></div>
+    <input type="file" id="photo-file-input" accept="image/*" style="display:none" onchange="onPhotoSelected(event)">
+
+    <button id="btn-analyze-photo" class="btn btn-dark w100" onclick="analyzePhoto()" style="display:none;margin-bottom:14px">
+      🔍 Analyser la photo
+    </button>
+
+    <div id="scan-result" style="margin-top:4px"></div>
   </div>
 </div>
 
@@ -678,156 +686,123 @@ function deleteAliment(){
 }
 
 // ============================================================
-// BARCODE SCAN — html5-qrcode (compatible tous navigateurs)
+// PHOTO IMPORT — analyse via Claude Vision API
 // ============================================================
-let html5QrCode = null;
-let scannerRunning = false;
+let photoBase64 = null;
+let photoMimeType = 'image/jpeg';
 
 function openScanModal(){
-  document.getElementById('scan-barcode').value='';
+  photoBase64 = null;
+  document.getElementById('photo-file-input').value='';
   document.getElementById('scan-result').innerHTML='';
-  document.getElementById('scan-reader-area').style.display='none';
-  document.getElementById('scan-manual-area').style.display='block';
+  document.getElementById('photo-preview-wrap').style.display='none';
+  document.getElementById('photo-placeholder').style.display='block';
+  document.getElementById('btn-analyze-photo').style.display='none';
+  const dz=document.getElementById('photo-dropzone');
+  dz.style.borderColor='var(--border)';
   openM('modal-scan');
 }
 
 function closeScanModal(){
-  stopCamera();
   closeM('modal-scan');
 }
 
-async function loadHtml5QrCode(){
-  if(window.Html5Qrcode) return true;
-  return new Promise((resolve)=>{
-    const s=document.createElement('script');
-    s.src='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-    s.onload=()=>resolve(!!window.Html5Qrcode);
-    s.onerror=()=>resolve(false);
-    document.head.appendChild(s);
-  });
+function onPhotoSelected(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  photoMimeType=file.type||'image/jpeg';
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const dataUrl=e.target.result;
+    photoBase64=dataUrl.split(',')[1];
+    // Preview
+    document.getElementById('photo-preview').src=dataUrl;
+    document.getElementById('photo-preview-wrap').style.display='block';
+    document.getElementById('photo-placeholder').style.display='none';
+    document.getElementById('btn-analyze-photo').style.display='block';
+    document.getElementById('photo-dropzone').style.borderColor='var(--terra)';
+    document.getElementById('scan-result').innerHTML='';
+  };
+  reader.readAsDataURL(file);
 }
 
-async function startCamera(){
+async function analyzePhoto(){
+  if(!photoBase64){return;}
   const res=document.getElementById('scan-result');
-  res.innerHTML='<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">⏳ Chargement du scanner…</div>';
+  res.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="font-size:13px">Analyse en cours…</div></div>';
+  document.getElementById('btn-analyze-photo').disabled=true;
 
-  const loaded = await loadHtml5QrCode();
-  if(!loaded){
-    res.innerHTML=`<div class="alert-y"><span>⚠️</span><span>Impossible de charger le scanner. Vérifie ta connexion ou saisis le code manuellement.</span></div>`;
-    return;
-  }
+  const prompt=`Tu es un assistant nutrition. Analyse cette image qui est soit :
+- Une capture d'écran de MyFitnessPal montrant les informations nutritionnelles d'un produit
+- Une photo d'un emballage alimentaire avec le tableau nutritionnel
 
-  // Nettoyer un éventuel scanner précédent
-  await stopCamera();
+Extrait UNIQUEMENT les informations suivantes et réponds en JSON pur (sans markdown, sans backticks) :
+{
+  "name": "Nom du produit",
+  "brand": "Marque (vide si inconnue)",
+  "kcal100": nombre de kcal pour 100g (entier),
+  "prot100": grammes de protéines pour 100g (décimal),
+  "gluc100": grammes de glucides pour 100g (décimal),
+  "lip100": grammes de lipides pour 100g (décimal),
+  "fibr100": grammes de fibres pour 100g (décimal, 0 si non indiqué)
+}
+Si les valeurs sont pour une portion et non pour 100g, convertis-les pour 100g.
+Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "impossible de lire les données nutritionnelles"}.`;
 
   try{
-    // Créer une nouvelle instance sur le container #scan-reader
-    html5QrCode = new Html5Qrcode('scan-reader');
-
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 150 },
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-      ],
-      aspectRatio: 1.5,
-      showTorchButtonIfSupported: true,
-    };
-
-    await html5QrCode.start(
-      { facingMode: 'environment' },
-      config,
-      (decodedText) => {
-        // Succès — code détecté
-        stopCamera();
-        document.getElementById('scan-barcode').value = decodedText;
-        document.getElementById('scan-manual-area').style.display = 'block';
-        res.innerHTML='';
-        lookupBarcode(decodedText);
-      },
-      (errorMsg) => {
-        // Erreurs silencieuses pendant le scan (pas de code visible)
-      }
-    );
-
-    scannerRunning = true;
-    document.getElementById('scan-reader-area').style.display = 'block';
-    document.getElementById('scan-manual-area').style.display = 'none';
-    res.innerHTML = '';
-
-    // Masquer les boutons inutiles générés par html5-qrcode
-    setTimeout(()=>{
-      const selectFile = document.getElementById('scan-reader__dashboard_section_swaplink');
-      if(selectFile) selectFile.style.display='none';
-    }, 300);
-
-  }catch(e){
-    document.getElementById('scan-reader-area').style.display='none';
-    document.getElementById('scan-manual-area').style.display='block';
-    let msg='❌ Impossible d\'accéder à la caméra. Vérifie les permissions.';
-    if(e && (e.toString().includes('NotAllowed')||e.toString().includes('Permission')))
-      msg='❌ Permission refusée. Autorise la caméra dans les réglages du navigateur.';
-    else if(e && e.toString().includes('NotFound'))
-      msg='❌ Aucune caméra détectée sur cet appareil.';
-    res.innerHTML=`<div style="text-align:center;padding:14px;color:var(--red)">${msg}</div>`;
-  }
-}
-
-async function stopCamera(){
-  if(html5QrCode && scannerRunning){
-    try{ await html5QrCode.stop(); }catch(e){}
-    try{ html5QrCode.clear(); }catch(e){}
-    scannerRunning = false;
-  }
-  html5QrCode = null;
-  document.getElementById('scan-reader-area').style.display='none';
-  document.getElementById('scan-manual-area').style.display='block';
-}
-
-async function lookupBarcode(codeArg){
-  const code=(codeArg||document.getElementById('scan-barcode').value).trim();
-  if(!code)return;
-  const res=document.getElementById('scan-result');
-  res.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted)">🔍 Recherche en cours…</div>';
-  try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:500,
+        messages:[{
+          role:'user',
+          content:[
+            {type:'image',source:{type:'base64',media_type:photoMimeType,data:photoBase64}},
+            {type:'text',text:prompt}
+          ]
+        }]
+      })
+    });
     const d=await r.json();
-    if(d.status!==1||!d.product){
-      res.innerHTML='<div style="text-align:center;padding:16px;color:var(--red)">❌ Produit non trouvé dans Open Food Facts</div>';
+    const text=d.content?.find(c=>c.type==='text')?.text||'';
+
+    let obj;
+    try{obj=JSON.parse(text.trim());}catch(e){
+      // tentative de nettoyage
+      const match=text.match(/\{[\s\S]*\}/);
+      if(match)obj=JSON.parse(match[0]);
+      else throw new Error('JSON invalide');
+    }
+
+    if(obj.error){
+      res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ ${obj.error}<br><span style="font-size:11px;color:var(--muted)">Essaie avec une photo plus nette du tableau nutritionnel</span></div>`;
+      document.getElementById('btn-analyze-photo').disabled=false;
       return;
     }
-    const p=d.product;
-    const n=p.nutriments||{};
-    const obj={
-      id:'a'+Date.now(),
-      name:p.product_name||p.product_name_fr||'Produit inconnu',
-      brand:p.brands||'',
-      kcal100:Math.round(n['energy-kcal_100g']||n['energy_100g']/4.184||0),
-      prot100:Math.round((n.proteins_100g||0)*10)/10,
-      gluc100:Math.round((n.carbohydrates_100g||0)*10)/10,
-      lip100:Math.round((n.fat_100g||0)*10)/10,
-      fibr100:Math.round((n.fiber_100g||0)*10)/10,
-      barcode:code
-    };
 
-    // Duplicate detection — check by barcode or by very similar name
-    const dupByBarcode=S.aliments.find(a=>a.barcode&&a.barcode===code);
+    // Normaliser
+    obj.id='a'+Date.now();
+    obj.kcal100=Math.round(obj.kcal100||0);
+    obj.prot100=Math.round((obj.prot100||0)*10)/10;
+    obj.gluc100=Math.round((obj.gluc100||0)*10)/10;
+    obj.lip100=Math.round((obj.lip100||0)*10)/10;
+    obj.fibr100=Math.round((obj.fibr100||0)*10)/10;
+    obj.name=obj.name||'Produit inconnu';
+    obj.brand=obj.brand||'';
+
+    // Duplicate detection
     const dupByName=S.aliments.find(a=>a.name.toLowerCase().trim()===obj.name.toLowerCase().trim());
-    const dup=dupByBarcode||dupByName;
 
-    if(dup){
+    if(dupByName){
       res.innerHTML=`
         <div class="card-sm" style="background:#FEF9EC;border:1px solid #F5D97A;margin-bottom:10px">
           <div style="font-size:13px;font-weight:600;color:#6B4F3A;margin-bottom:4px">⚠️ Cet aliment existe déjà</div>
-          <div style="font-size:12px;color:#9B8B7E;margin-bottom:10px">"${dup.name}"${dup.brand?' · '+dup.brand:''} est déjà dans ta bibliothèque.</div>
+          <div style="font-size:12px;color:#9B8B7E;margin-bottom:10px">"${dupByName.name}"${dupByName.brand?' · '+dupByName.brand:''} est déjà dans ta bibliothèque.</div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm btn-outline" onclick="closeScanModal()" style="flex:1">Annuler</button>
-            <button class="btn btn-sm" style="flex:1;background:#C4724A;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit" onclick="updateExistingAlim('${dup.id}',${JSON.stringify(obj).replace(/'/g,"&#39;")})">Mettre à jour</button>
+            <button class="btn btn-sm" style="flex:1;background:#C4724A;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit" onclick="updateExistingAlim('${dupByName.id}',${JSON.stringify(obj).replace(/'/g,"&#39;")})">Mettre à jour</button>
             <button class="btn btn-sm btn-dark" style="flex:1" onclick='confirmImportScanned(${JSON.stringify(obj).replace(/</g,"&lt;")})'>Ajouter quand même</button>
           </div>
         </div>
@@ -844,8 +819,9 @@ async function lookupBarcode(codeArg){
         </div>`;
     }
   }catch(e){
-    res.innerHTML='<div style="text-align:center;padding:16px;color:var(--red)">❌ Erreur de connexion. Vérifiez votre connexion internet.</div>';
+    res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ Erreur lors de l'analyse. Réessaie.</div>`;
   }
+  document.getElementById('btn-analyze-photo').disabled=false;
 }
 
 function macroTags(obj){
