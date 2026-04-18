@@ -356,6 +356,17 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div style="font-size:13px;font-weight:600;margin-bottom:6px">Remplis ton profil pour calculer</div>
     <div class="text-m">Âge, taille, poids et activité sont nécessaires</div>
   </div>
+
+  <!-- Clé API -->
+  <div class="card" style="margin-top:14px" id="card-api-key">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:7px"><span>🔑</span> Clé API Claude (IA photo)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Nécessaire pour l'analyse de photos d'emballages et le message coach.<br>Obtiens ta clé sur <a href="https://console.anthropic.com/keys" target="_blank" style="color:var(--terra)">console.anthropic.com</a>.</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-…" style="flex:1;font-family:monospace;font-size:12px">
+      <button class="btn btn-dark btn-sm" onclick="saveApiKey()">Enregistrer</button>
+    </div>
+    <div id="api-key-status" style="font-size:11px;margin-top:8px;color:var(--muted)"></div>
+  </div>
 </div>
 
 
@@ -793,6 +804,25 @@ function deleteAliment(){
 }
 
 // ============================================================
+// API KEY MANAGEMENT
+// ============================================================
+function getApiKey(){return localStorage.getItem('coach_api_key')||'';}
+function saveApiKey(){
+  const v=document.getElementById('api-key-input').value.trim();
+  if(!v){document.getElementById('api-key-status').innerHTML='<span style="color:var(--red)">Clé vide.</span>';return;}
+  localStorage.setItem('coach_api_key',v);
+  document.getElementById('api-key-status').innerHTML='<span style="color:var(--sage)">✅ Clé enregistrée !</span>';
+  setTimeout(()=>{document.getElementById('api-key-status').innerHTML='';},3000);
+}
+function loadApiKeyUI(){
+  const k=getApiKey();
+  if(k){
+    document.getElementById('api-key-input').value=k;
+    document.getElementById('api-key-status').innerHTML='<span style="color:var(--sage)">✅ Clé enregistrée</span>';
+  }
+}
+
+// ============================================================
 // PHOTO IMPORT — analyse via Claude Vision API
 // ============================================================
 let photoBase64 = null;
@@ -902,9 +932,15 @@ Si les valeurs sont pour une portion et non pour 100g, convertis-les pour 100g.
 Si tu ne peux pas extraire les informations avec certitude, renvoie {"error": "impossible de lire les données nutritionnelles"}.`;
 
   try{
+    const apiKey=getApiKey();
+    if(!apiKey){
+      res.innerHTML='<div style="text-align:center;padding:16px;color:var(--red)">🔑 Clé API manquante.<br><span style="font-size:12px;color:var(--muted)">Va dans <strong>Objectifs</strong> → section clé API pour l\'enregistrer.</span></div>';
+      document.getElementById('btn-analyze-photo').disabled=false;
+      return;
+    }
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','x-api-key':apiKey},
       body:JSON.stringify({
         model:'claude-haiku-4-5-20251001',
         max_tokens:500,
@@ -1447,7 +1483,7 @@ async function renderCoachMsg(){
   const lastW=S.suivi.weights.length>0?S.suivi.weights[S.suivi.weights.length-1]:null;
   const prompt=`Tu es une coach sportive et nutritionniste bienveillante mais exigeante. Tu coaches quelqu'un qui veut passer de 56kg à 46kg en force, objectif ${GOAL_KCAL()} kcal/jour (${GOAL_P()}g P, ${GOAL_G()}g G, ${GOAL_L()}g L). Données du jour : streak ${streak}j, score semaine ${ws}/100, règles cochées ${dc}/8, eau ${water}ml/${WATER_GOAL}ml, dernier poids ${lastW?lastW.val+'kg':'non renseigné'}. Écris un message de motivation court et personnalisé (3-4 phrases max). Tu dois être directe, honnête, encourageante mais exigeante. Commence directement sans salutation. Parle en "tu".`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','x-api-key':getApiKey()},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();
     el.textContent=d.content?.find(c=>c.type==='text')?.text||'Continue, tu construis ta meilleure version !';
     coachLoaded=true;
@@ -2006,6 +2042,7 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>ov.addEventListener('cli
 // INIT
 // ============================================================
 renderAliments();
+loadApiKeyUI();
 </script>
 </body>
 </html>
