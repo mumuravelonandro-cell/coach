@@ -149,7 +149,10 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <div id="page-recettes" class="page">
   <div class="flex-b mb-16">
     <div><div class="sec-title">Recettes</div><div class="sec-sub">Macros calculés automatiquement, pesé CRU</div></div>
-    <button class="btn btn-dark btn-sm" onclick="openRecipeModal()">+ Recette</button>
+    <div class="flex gap-8">
+      <button class="btn btn-outline btn-sm" onclick="openScanRecipeModal()">📸 Photo</button>
+      <button class="btn btn-dark btn-sm" onclick="openRecipeModal()">+ Recette</button>
+    </div>
   </div>
   <div class="pill-tabs" id="rec-filter-tabs">
     <button class="pill-tab active" onclick="filterRec('all',this)">Toutes</button>
@@ -451,6 +454,64 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     </button>
 
     <div id="scan-result" style="margin-top:4px"></div>
+  </div>
+</div>
+
+<!-- Recipe Photo Import Modal -->
+<div class="modal-overlay hidden" id="modal-scan-recipe">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">📸 Importer une recette depuis photo<button class="btn-icon" onclick="closeScanRecipeModal()">✕</button></div>
+
+    <!-- Instructions -->
+    <div style="background:#F7F3EE;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6">
+      📱 <strong style="color:var(--dark)">Photo d'une recette :</strong><br>
+      • Photo 1 : liste des ingrédients + quantités (obligatoire)<br>
+      • Photo 2 : complément (valeurs nutritionnelles, autre face…) (optionnel)
+    </div>
+
+    <!-- Deux zones photos côte à côte -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+
+      <!-- Photo 1 -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Photo 1 · Ingrédients</div>
+        <div id="rec-photo-dropzone-1" onclick="document.getElementById('rec-photo-file-input-1').click()"
+          style="border:2px dashed var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div id="rec-photo-preview-wrap-1" style="display:none;width:100%">
+            <img id="rec-photo-preview-1" style="max-width:100%;max-height:120px;border-radius:8px;object-fit:contain">
+            <div id="rec-photo-size-1" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center"></div>
+          </div>
+          <div id="rec-photo-placeholder-1">
+            <div style="font-size:26px;margin-bottom:4px">📷</div>
+            <div style="font-size:11px;font-weight:600;color:var(--dark)">Ajouter</div>
+          </div>
+        </div>
+        <input type="file" id="rec-photo-file-input-1" accept="image/*" style="display:none" onchange="onRecPhotoSelected(event,1)">
+      </div>
+
+      <!-- Photo 2 -->
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Photo 2 <span style="font-weight:400;opacity:.6">(optionnel)</span></div>
+        <div id="rec-photo-dropzone-2" onclick="document.getElementById('rec-photo-file-input-2').click()"
+          style="border:2px dashed var(--border);border-radius:12px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .2s;background:#fff;min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div id="rec-photo-preview-wrap-2" style="display:none;width:100%">
+            <img id="rec-photo-preview-2" style="max-width:100%;max-height:120px;border-radius:8px;object-fit:contain">
+            <div id="rec-photo-size-2" style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center"></div>
+          </div>
+          <div id="rec-photo-placeholder-2">
+            <div style="font-size:26px;margin-bottom:4px">➕</div>
+            <div style="font-size:11px;font-weight:600;color:var(--muted)">Optionnel</div>
+          </div>
+        </div>
+        <input type="file" id="rec-photo-file-input-2" accept="image/*" style="display:none" onchange="onRecPhotoSelected(event,2)">
+      </div>
+    </div>
+
+    <button id="btn-analyze-rec-photo" class="btn btn-dark w100" onclick="analyzePhotoRecipe()" style="display:none;margin-bottom:14px">
+      🔍 Analyser la recette
+    </button>
+
+    <div id="scan-recipe-result" style="margin-top:4px"></div>
   </div>
 </div>
 
@@ -939,11 +1000,13 @@ async function analyzePhoto(){
 
   const prompt=`Tu es un assistant nutrition. Analyse ${nbPhotos===2?'ces deux images (recto et verso d\'un même emballage)':'cette image'} qui ${nbPhotos===2?'montrent':'montre'} un emballage alimentaire avec le tableau nutritionnel.
 
+IMPORTANT sur l'énergie : les étiquettes européennes affichent souvent deux valeurs côte à côte, par exemple "1670 kJ / 400 kcal". Tu dois UNIQUEMENT extraire la valeur en kcal (kilocalories), PAS la valeur en kJ (kilojoules). 1 kcal ≈ 4,18 kJ donc si la valeur te semble > 900 pour un aliment courant, vérifie que tu n'as pas pris la valeur kJ par erreur.
+
 Extrait UNIQUEMENT les informations suivantes et réponds en JSON pur (sans markdown, sans backticks) :
 {
   "name": "Nom du produit",
   "brand": "Marque (vide si inconnue)",
-  "kcal100": nombre de kcal pour 100g (entier),
+  "kcal100": nombre de KCAL (kilocalories) pour 100g — PAS les kJ (entier),
   "prot100": grammes de protéines pour 100g (décimal),
   "gluc100": grammes de glucides pour 100g (décimal),
   "lip100": grammes de lipides pour 100g (décimal),
@@ -1055,6 +1118,187 @@ function updateExistingAlim(id,newData){
   if(idx>=0){S.aliments[idx]={...S.aliments[idx],...newData,id};}
   save();closeScanModal();renderAliments();
   showTab('aliments',document.querySelector('.nav-tab'));
+}
+
+// ============================================================
+// PHOTO IMPORT — RECETTE
+// ============================================================
+let recPhotos = [null, null];
+
+function openScanRecipeModal(){
+  recPhotos = [null, null];
+  document.getElementById('rec-photo-file-input-1').value='';
+  document.getElementById('rec-photo-file-input-2').value='';
+  document.getElementById('scan-recipe-result').innerHTML='';
+  [1,2].forEach(n=>{
+    document.getElementById('rec-photo-preview-wrap-'+n).style.display='none';
+    document.getElementById('rec-photo-placeholder-'+n).style.display='flex';
+    document.getElementById('rec-photo-dropzone-'+n).style.borderColor='var(--border)';
+  });
+  document.getElementById('btn-analyze-rec-photo').style.display='none';
+  openM('modal-scan-recipe');
+}
+
+function closeScanRecipeModal(){
+  closeM('modal-scan-recipe');
+}
+
+function onRecPhotoSelected(event, n){
+  const file=event.target.files[0];
+  if(!file)return;
+  document.getElementById('scan-recipe-result').innerHTML='<div style="text-align:center;padding:8px;color:var(--muted);font-size:12px">⏳ Optimisation…</div>';
+  compressImage(file, 1200, 0.82).then(function(result){
+    recPhotos[n-1]={base64:result.base64, mimeType:'image/jpeg'};
+    document.getElementById('rec-photo-preview-'+n).src='data:image/jpeg;base64,'+result.base64;
+    document.getElementById('rec-photo-preview-wrap-'+n).style.display='block';
+    document.getElementById('rec-photo-placeholder-'+n).style.display='none';
+    document.getElementById('rec-photo-dropzone-'+n).style.borderColor='var(--terra)';
+    document.getElementById('rec-photo-size-'+n).textContent='✅ '+result.kb+'KB';
+    document.getElementById('scan-recipe-result').innerHTML='';
+    if(recPhotos[0])document.getElementById('btn-analyze-rec-photo').style.display='block';
+  }).catch(function(e){
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      const dataUrl=ev.target.result;
+      recPhotos[n-1]={base64:dataUrl.split(',')[1], mimeType:file.type||'image/jpeg'};
+      document.getElementById('rec-photo-preview-'+n).src=dataUrl;
+      document.getElementById('rec-photo-preview-wrap-'+n).style.display='block';
+      document.getElementById('rec-photo-placeholder-'+n).style.display='none';
+      document.getElementById('rec-photo-dropzone-'+n).style.borderColor='var(--terra)';
+      document.getElementById('rec-photo-size-'+n).textContent='';
+      document.getElementById('scan-recipe-result').innerHTML='';
+      if(recPhotos[0])document.getElementById('btn-analyze-rec-photo').style.display='block';
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzePhotoRecipe(){
+  if(!recPhotos[0])return;
+  const res=document.getElementById('scan-recipe-result');
+  const nbPhotos=recPhotos.filter(Boolean).length;
+  res.innerHTML=`<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🔍</div><div style="font-size:13px">Analyse de ${nbPhotos} photo${nbPhotos>1?'s':''} en cours…</div></div>`;
+  document.getElementById('btn-analyze-rec-photo').disabled=true;
+
+  // Build list of known aliments for matching
+  const alimList = S.aliments.map(a=>`- id="${a.id}" | nom="${a.name}"${a.brand?' ('+a.brand+')':''}`).join('\n');
+
+  const prompt=`Tu es un assistant nutrition. Analyse ${nbPhotos===2?'ces deux images':'cette image'} qui montre une recette avec ses ingrédients et leurs quantités.
+
+Ma bibliothèque d'aliments disponibles :
+${alimList||'(vide)'}
+
+Ta mission :
+1. Identifie le nom de la recette (ou propose-en un si absent)
+2. Pour chaque ingrédient de la recette, trouve la correspondance la plus proche dans ma bibliothèque ci-dessus
+3. Extrait la quantité en grammes (si mentionnée en autre unité, convertis en grammes approximatifs)
+
+Réponds en JSON pur (sans markdown, sans backticks) :
+{
+  "name": "Nom de la recette",
+  "cat": "petit-dej" | "déjeuner" | "collation" | "dîner",
+  "ingredients": [
+    {"alim_id": "id exact de ma bibliothèque ou null si absent", "alim_name": "nom de l'ingrédient tel qu'écrit", "g": quantité en grammes (nombre)}
+  ],
+  "unknown": ["nom des ingrédients non trouvés dans la bibliothèque"]
+}
+Si tu ne peux pas analyser les images, renvoie {"error": "impossible de lire la recette"}.`;
+
+  try{
+    const apiKey=getApiKey();
+    if(!apiKey){
+      res.innerHTML='<div style="text-align:center;padding:16px;color:var(--red)">🔑 Clé API manquante.<br><span style="font-size:12px;color:var(--muted)">Va dans <strong>Objectifs</strong> → section clé API pour l\'enregistrer.</span></div>';
+      document.getElementById('btn-analyze-rec-photo').disabled=false;
+      return;
+    }
+
+    const content=[];
+    recPhotos.forEach(p=>{if(p)content.push({type:'image',source:{type:'base64',media_type:p.mimeType,data:p.base64}});});
+    content.push({type:'text',text:prompt});
+
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','x-api-key':apiKey},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content}]})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error((d.error&&d.error.message)||('HTTP '+r.status));
+    const text=d.content?.find(c=>c.type==='text')?.text||'';
+
+    let obj;
+    try{obj=JSON.parse(text.trim());}catch(e){
+      const match=text.match(/\{[\s\S]*\}/);
+      if(match)obj=JSON.parse(match[0]);
+      else throw new Error('JSON invalide');
+    }
+
+    if(obj.error){
+      res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ ${obj.error}<br><span style="font-size:11px;color:var(--muted)">Essaie avec une photo plus nette</span></div>`;
+      document.getElementById('btn-analyze-rec-photo').disabled=false;
+      return;
+    }
+
+    // Build matched ingredients
+    const matched = (obj.ingredients||[]).filter(i=>i.alim_id && S.aliments.find(a=>a.id===i.alim_id));
+    const unmatched = [
+      ...(obj.ingredients||[]).filter(i=>!i.alim_id||!S.aliments.find(a=>a.id===i.alim_id)).map(i=>i.alim_name),
+      ...(obj.unknown||[])
+    ].filter(Boolean);
+
+    // Preview macros
+    const fakeIngrs = matched.map(i=>({id:i.alim_id, g:i.g}));
+    const m = calcMacros(fakeIngrs);
+
+    let html=`<div class="card-sm" style="background:var(--bg);margin-bottom:10px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">🍽️ ${obj.name||'Recette importée'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Catégorie : ${obj.cat||'déjeuner'} · ${matched.length} ingrédient${matched.length>1?'s':''} trouvé${matched.length>1?'s':''}</div>
+      <div class="rec-macros mb-8">
+        <span class="tag tag-k">${m.kcal} kcal</span>
+        <span class="tag tag-p">${m.prot}g P</span>
+        <span class="tag tag-g">${m.gluc}g G</span>
+        <span class="tag tag-l">${m.lip}g L</span>
+      </div>`;
+    if(matched.length){
+      html+=`<div style="font-size:11px;color:var(--dark);margin-bottom:6px;font-weight:600">✅ Ingrédients reconnus :</div>`;
+      matched.forEach(i=>{
+        const a=S.aliments.find(x=>x.id===i.alim_id);
+        html+=`<div style="font-size:11px;color:var(--muted);padding:2px 0">• ${a.name} — ${i.g}g</div>`;
+      });
+    }
+    if(unmatched.length){
+      html+=`<div style="font-size:11px;color:var(--red);margin-top:6px;font-weight:600">⚠️ Introuvables dans ta bibliothèque :</div>`;
+      unmatched.forEach(u=>{ html+=`<div style="font-size:11px;color:var(--muted);padding:2px 0">• ${u}</div>`; });
+      html+=`<div style="font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">Ajoute ces aliments d'abord pour les inclure.</div>`;
+    }
+    html+=`</div>`;
+
+    if(matched.length){
+      const recipeData={
+        name: obj.name||'Recette importée',
+        cat: obj.cat||'déjeuner',
+        url:'',
+        ingredients: matched.map(i=>({id:i.alim_id, g:i.g}))
+      };
+      html+=`<button class="btn btn-dark w100" onclick='confirmImportRecipe(${JSON.stringify(recipeData).replace(/</g,"&lt;")})'>+ Créer cette recette</button>`;
+    }else{
+      html+=`<div style="text-align:center;padding:10px;font-size:12px;color:var(--muted)">Aucun ingrédient de ta bibliothèque trouvé. Ajoute d'abord tes aliments.</div>`;
+    }
+
+    res.innerHTML=html;
+  }catch(e){
+    const msg=e&&e.message?e.message:String(e);
+    res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--red)">❌ Erreur lors de l'analyse.<br><span style="font-size:11px;color:var(--muted)">${msg}</span></div>`;
+  }
+  document.getElementById('btn-analyze-rec-photo').disabled=false;
+}
+
+function confirmImportRecipe(recipeData){
+  const obj={...recipeData, id:'r'+Date.now()};
+  S.recipes.push(obj);
+  save();
+  closeScanRecipeModal();
+  renderRecipes();
+  showTab('recettes', document.querySelectorAll('.nav-tab')[1]);
 }
 
 // ============================================================
