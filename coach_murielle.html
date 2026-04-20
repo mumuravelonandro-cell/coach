@@ -122,6 +122,17 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </head>
 <body>
 
+<!-- ===== SPLASH SYNC ===== -->
+<div id="splash-sync" style="position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
+  <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--dark)">NutriFlow <span style="color:var(--terra);font-style:italic">· Murielle</span></div>
+  <div id="splash-icon" style="font-size:36px">☁️</div>
+  <div id="splash-msg" style="font-size:14px;color:var(--muted);font-weight:500">Chargement des données…</div>
+  <div style="width:180px;height:5px;background:var(--cream);border-radius:10px;overflow:hidden">
+    <div id="splash-bar" style="height:100%;width:0%;background:var(--terra);border-radius:10px;transition:width 0.4s ease"></div>
+  </div>
+  <button id="splash-retry-btn" onclick="splashRetry()" style="display:none;margin-top:8px;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Réessayer</button>
+</div>
+
 <nav class="nav">
   <div class="nav-brand">NutriFlow <span>· Murielle</span></div>
   <button id="sync-btn" onclick="forceSyncUp()" title="Synchroniser" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:11px;color:#6B8FAD;font-family:inherit;transition:all 0.2s;flex-shrink:0;margin:10px 8px 10px 0">☁️ Sync</button>
@@ -204,19 +215,8 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <!-- ===== SUIVI ===== -->
 <div id="page-suivi" class="page">
   <div class="sec-title mb-16">Suivi & Motivation</div>
-  <!-- Coach IA -->
-  <div class="card mb-14" style="background:linear-gradient(135deg,#0F2D4A,#1a4a70);color:#fff;border:none">
-    <div class="flex gap-12" style="align-items:flex-start">
-      <div style="width:38px;height:38px;border-radius:11px;background:var(--terra);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">🤖</div>
-      <div style="flex:1">
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(247,243,238,.45);margin-bottom:5px">Ta coach IA · Aujourd'hui</div>
-        <div id="coach-msg" style="font-size:13px;line-height:1.65;color:rgba(247,243,238,.9)">Chargement…</div>
-        <button onclick="refreshCoach()" style="margin-top:9px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;color:#fff;padding:4px 11px;font-size:11px;cursor:pointer;font-family:inherit">🔄 Nouveau message</button>
-      </div>
-    </div>
-  </div>
   <!-- Streak / Score -->
-  <div class="g2 mb-14">
+  <div class="g2 mb-20">
     <div class="card-sm" style="text-align:center;background:linear-gradient(135deg,#FFF5F0,#FFE8DC)">
       <div style="font-size:26px;font-weight:800;color:var(--terra)" id="streak-num">0</div>
       <div style="font-size:11px;color:var(--terra);font-weight:600">jours de streak 🔥</div>
@@ -863,14 +863,14 @@ const DAYS_FULL = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Diman
 const MEAL_SLOTS = ['petit-dej','déjeuner','collation','dîner'];
 const MEAL_LABELS = {'petit-dej':'🌅 Petit-dej','déjeuner':'☀️ Déjeuner','collation':'🍎 Collation','dîner':'🌙 Dîner'};
 const GOLDEN_RULES = [
-  {id:'cru',e:'⚖️',l:'Pesé CRU',d:'Tous les ingrédients pesés avant cuisson'},
-  {id:'scan',e:'📱',l:'Tout tracké',d:'Chaque repas enregistré'},
-  {id:'eau',e:'💧',l:'1,8 L d\'eau',d:'3 gourdes de 600ml remplies'},
-  {id:'prot',e:'🥩',l:'Protéines en premier',d:'Commencer par la source protéinée'},
-  {id:'repas',e:'🕐',l:'Pas de repas sauté',d:'3-4 prises alimentaires respectées'},
-  {id:'lent',e:'🐢',l:'Mangé lentement',d:'20 min minimum par repas'},
-  {id:'sommeil',e:'😴',l:'7-8h de sommeil',d:'Moins dormir = plus faim'},
-  {id:'progres',e:'🌱',l:'Le progrès > la perfection',d:'1 écart ≠ journée ratée'},
+  {id:'kcal',e:'✅',l:'Respect des kcal',d:'Rester dans l\'enveloppe calorique du jour'},
+  {id:'prot',e:'🥩',l:'Quota protéines atteint',d:'Atteindre l\'objectif de protéines de la journée'},
+  {id:'sport',e:'🏋️',l:'Sport prévu effectué',d:'Réaliser la séance de sport planifiée'},
+  {id:'pas',e:'👟',l:'10 000 pas atteints',d:'Atteindre les 10 000 pas dans la journée'},
+  {id:'eau',e:'💧',l:'Quota d\'eau atteint',d:'Atteindre l\'objectif d\'hydratation du jour'},
+  {id:'lent',e:'🐢',l:'Mangé lentement',d:'20 min minimum par repas, mâcher correctement'},
+  {id:'sommeil',e:'😴',l:'Sommeil respecté',d:'7-8h de sommeil, clé de la récupération'},
+  {id:'craquage',e:'🚫',l:'Pas de craquage si pas prévu',d:'Tenir l\'objectif sans écart non planifié'},
 ];
 
 // ============================================================
@@ -2007,24 +2007,27 @@ function renderDayMenu(){
       const isFree=r.isFree;
       const isAlimSingle=r.isAlimSingle;
       const rid=r.id;
-      return`<div class="flex-b" style="align-items:flex-start;gap:8px;margin-bottom:${idx<items.length-1?'8px':'0'}">
+      return`<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:${idx<items.length-1?'8px':'0'}">
         <div style="flex:1">
           <div class="meal-name" style="font-size:13px">${isFree?'✏️ ':isAlimSingle?'🥦 ':''}${r.name}</div>
           <div class="meal-macros"><span>${m.kcal} kcal</span><span>·</span><span style="color:var(--proto)">${Math.round(m.prot*10)/10}g P</span><span>·</span><span style="color:var(--gold)">${Math.round(m.gluc*10)/10}g G</span><span>·</span><span style="color:var(--terra)">${Math.round(m.lip*10)/10}g L</span></div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
-          ${(!isFree&&!isAlimSingle)?`<button onclick="event.stopPropagation();openMenuRecipeEdit('${rid}','${slot}')" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:4px 9px;font-size:11px;font-weight:600;color:var(--dark);cursor:pointer;white-space:nowrap;font-family:inherit">⚖️</button>`:''}
+          ${(!isFree&&!isAlimSingle)?`<button onclick="event.stopPropagation();openMenuRecipeEdit('${rid}','${slot}')" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:4px 9px;font-size:11px;font-weight:600;color:var(--dark);cursor:pointer;white-space:nowrap;font-family:inherit">⚖️</button>`:'<div style="width:35px"></div>'}
           <button onclick="event.stopPropagation();removeSlotItem('${slot}','${rid}')" style="background:#FEF0F0;border:1.5px solid #FECACA;border-radius:8px;padding:4px 7px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">✕</button>
         </div>
       </div>`;
     }).join(items.length>1?`<div style="height:1px;background:var(--border);margin:0 0 8px 0"></div>`:'');
 
     return`<div class="meal-slot ${hasItems?'filled':''}" style="${hasItems?'cursor:default':''}">
-      <div class="flex-b mb-6">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="meal-label" style="margin-bottom:0">${MEAL_LABELS[slot]}</div>
-        <button onclick="openPickModal('${slot}')" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--dark);cursor:pointer;font-family:inherit;flex-shrink:0">+ Ajouter</button>
+        <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+          ${hasItems?'<div style="width:35px"></div>':''}
+          <button onclick="openPickModal('${slot}')" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:4px 9px;font-size:12px;font-weight:600;color:var(--dark);cursor:pointer;font-family:inherit">+ Ajouter</button>
+        </div>
       </div>
-      ${hasItems?itemsHtml:`<div style="font-size:12px;color:var(--muted)" onclick="openPickModal('${slot}')" style="cursor:pointer">+ Ajouter un repas</div>`}
+      ${hasItems?`<div style="margin-top:0">${itemsHtml}</div>`:`<div style="font-size:12px;color:var(--muted)" onclick="openPickModal('${slot}')" style="cursor:pointer">+ Ajouter un repas</div>`}
     </div>`;
   }).join('');
 }
@@ -2318,7 +2321,6 @@ function applyDayCopy(){
 // ============================================================
 // SUIVI
 // ============================================================
-let coachLoaded=false;
 
 function getTodayChecks(){
   const today=todayKey();
@@ -2335,7 +2337,6 @@ function renderSuivi(){
   const scoreEl=document.getElementById('week-score');
   scoreEl.textContent=ws;
   scoreEl.style.color=ws>=75?'var(--sage)':ws>=50?'var(--gold)':'var(--red)';
-  renderCoachMsg();
   // Rules
   const gl=document.getElementById('golden-list');
   gl.innerHTML=GOLDEN_RULES.map(r=>{
@@ -2445,22 +2446,7 @@ function calcWeekScore(){
   return cnt>0?Math.round(tot/cnt):'-';
 }
 
-async function renderCoachMsg(){
-  if(coachLoaded)return;
-  const el=document.getElementById('coach-msg');
-  const c=getTodayChecks();
-  const dc=Object.values(c.rules||{}).filter(Boolean).length;
-  const streak=calcStreak();const ws=calcWeekScore();const water=c.water||0;
-  const lastW=S.suivi.weights.length>0?S.suivi.weights[S.suivi.weights.length-1]:null;
-  const prompt=`Tu es une coach sportive et nutritionniste bienveillante mais exigeante. Tu coaches Murielle qui veut atteindre son objectif de ${S.tdeeProfile?.goalWeight||'—'}kg, objectif ${GOAL_KCAL()} kcal/jour (${GOAL_P()}g P, ${GOAL_G()}g G, ${GOAL_L()}g L). Données du jour : streak ${streak}j, score semaine ${ws}/100, règles cochées ${dc}/8, eau ${water}ml/${WATER_GOAL}ml, dernier poids ${lastW?lastW.val+'kg':'non renseigné'}. Écris un message de motivation court et personnalisé (3-4 phrases max). Tu dois être directe, honnête, encourageante mais exigeante. Commence directement sans salutation. Parle en "tu".`;
-  try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','x-api-key':getApiKey()},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
-    const d=await r.json();
-    el.textContent=d.content?.find(c=>c.type==='text')?.text||'Continue, tu construis ta meilleure version !';
-    coachLoaded=true;
-  }catch(e){el.textContent='Reste concentrée sur tes objectifs. Chaque repas tracké est une victoire. 💪';coachLoaded=true;}
-}
-function refreshCoach(){coachLoaded=false;renderCoachMsg();}
+function refreshCoach(){}
 
 // ============================================================
 // SPORT — exact tracker logic
@@ -3010,24 +2996,113 @@ function closeM(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(ov=>ov.addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');}));
 
 // ============================================================
+// SPLASH HELPERS
+// ============================================================
+function splashProgress(pct, msg){
+  const bar = document.getElementById('splash-bar');
+  const lbl = document.getElementById('splash-msg');
+  if(bar) bar.style.width = pct + '%';
+  if(lbl) lbl.textContent = msg;
+}
+function splashDone(){
+  const el = document.getElementById('splash-sync');
+  if(!el) return;
+  document.getElementById('splash-icon').textContent = '✅';
+  splashProgress(100, 'Données chargées !');
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(), 400); }, 600);
+}
+function splashError(msg){
+  document.getElementById('splash-icon').textContent = '⚠️';
+  splashProgress(100, msg || 'Erreur de connexion');
+  const btn = document.getElementById('splash-retry-btn');
+  if(btn) btn.style.display = 'block';
+}
+async function splashRetry(){
+  document.getElementById('splash-retry-btn').style.display = 'none';
+  document.getElementById('splash-icon').textContent = '☁️';
+  splashProgress(0, 'Nouvelle tentative…');
+  await initApp();
+}
+
+// ============================================================
 // INIT
 // ============================================================
-// Chargement initial async depuis le BIN partagé
-(async ()=>{
+async function initApp(){
   setSyncUI('syncing');
-  S = await loadFromBin();
-  setSyncUI('ok');
+  splashProgress(10, 'Connexion au cloud…');
+
+  let loaded = false;
+  try {
+    const fetchPromise = fetch(BIN_URL, {headers: BIN_HDR});
+    const timeoutPromise = new Promise((_,r) => setTimeout(()=>r(new Error('timeout')), 10000));
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+
+    splashProgress(40, 'Données reçues…');
+
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const bin = await res.json();
+    _binCache = bin;
+
+    splashProgress(70, 'Restauration en cours…');
+
+    const shared   = bin.shared  || {};
+    const personal = bin[USER_KEY] || {};
+    S = {
+      aliments   : shared.aliments     || defaultAliments(),
+      recipes    : shared.recipes      || defaultRecipes(),
+      menu       : personal.menu       || {},
+      suivi      : personal.suivi      || {weights:[], dailyChecks:{}},
+      sport      : personal.sport      || {template:defaultSportTemplate(), weeks:{}, weekGoals:{}},
+      tdeeProfile: personal.tdeeProfile || {},
+      goals      : personal.goals      || {kcal:968, prot:110, gluc:87, lip:20}
+    };
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
+    loaded = true;
+    splashProgress(90, 'Finalisation…');
+    setSyncUI('ok');
+
+  } catch(e) {
+    console.warn('Cloud load failed:', e.message);
+    try {
+      const v = localStorage.getItem(STORE_KEY);
+      if(v){ S = JSON.parse(v); loaded = true; setSyncUI('ok'); }
+    } catch(e2){}
+
+    if(!loaded){
+      S = emptyStore();
+      setSyncUI('error');
+      splashError('Impossible de charger les données. Vérifie ta connexion.');
+      renderAliments();
+      loadApiKeyUI();
+      return;
+    } else {
+      setSyncUI('ok');
+      splashProgress(100, '⚠️ Cloud indisponible — données locales');
+      document.getElementById('splash-icon').textContent = '📱';
+      setTimeout(()=>{
+        const el = document.getElementById('splash-sync');
+        if(el){ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(), 400); }
+      }, 1800);
+    }
+  }
+
   renderAliments();
   loadApiKeyUI();
+  if(loaded) splashDone();
+
   // Refresh discret toutes les 2 minutes (pour récupérer les ajouts du mari)
   setInterval(async ()=>{
-    const fresh = await loadFromBin();
-    // Merge biblio partagée sans écraser les données perso locales en cours
-    S.aliments = fresh.aliments;
-    S.recipes  = fresh.recipes;
-    renderAliments();
+    try {
+      const fresh = await loadFromBin();
+      S.aliments = fresh.aliments;
+      S.recipes  = fresh.recipes;
+      renderAliments();
+    } catch(e){}
   }, 120000);
-})();
+}
+
+// Lancement
+initApp();
 </script>
 </body>
 </html>
