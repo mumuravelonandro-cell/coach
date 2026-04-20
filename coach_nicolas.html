@@ -122,6 +122,17 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </head>
 <body>
 
+<!-- ===== SPLASH SYNC ===== -->
+<div id="splash-sync" style="position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
+  <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--dark)">NutriFlow <span style="color:var(--terra);font-style:italic">· Nicolas</span></div>
+  <div id="splash-icon" style="font-size:36px">☁️</div>
+  <div id="splash-msg" style="font-size:14px;color:var(--muted);font-weight:500">Chargement des données…</div>
+  <div style="width:180px;height:5px;background:var(--cream);border-radius:10px;overflow:hidden">
+    <div id="splash-bar" style="height:100%;width:0%;background:var(--terra);border-radius:10px;transition:width 0.4s ease"></div>
+  </div>
+  <button id="splash-retry-btn" onclick="splashRetry()" style="display:none;margin-top:8px;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Réessayer</button>
+</div>
+
 <nav class="nav">
   <div class="nav-brand">NutriFlow <span>· Nicolas</span></div>
   <button id="sync-btn" onclick="forceSyncUp()" title="Synchroniser" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:11px;color:#9B8B7E;font-family:inherit;transition:all 0.2s;flex-shrink:0;margin:10px 8px 10px 0">☁️ Sync</button>
@@ -3026,24 +3037,117 @@ function closeM(id){document.getElementById(id).classList.add('hidden');}
 document.querySelectorAll('.modal-overlay').forEach(ov=>ov.addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');}));
 
 // ============================================================
+// SPLASH HELPERS
+// ============================================================
+function splashProgress(pct, msg){
+  const bar = document.getElementById('splash-bar');
+  const lbl = document.getElementById('splash-msg');
+  if(bar) bar.style.width = pct + '%';
+  if(lbl) lbl.textContent = msg;
+}
+function splashDone(){
+  const el = document.getElementById('splash-sync');
+  if(!el) return;
+  document.getElementById('splash-icon').textContent = '✅';
+  splashProgress(100, 'Données chargées !');
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(), 400); }, 600);
+}
+function splashError(msg){
+  document.getElementById('splash-icon').textContent = '⚠️';
+  splashProgress(100, msg || 'Erreur de connexion');
+  const btn = document.getElementById('splash-retry-btn');
+  if(btn) btn.style.display = 'block';
+}
+async function splashRetry(){
+  document.getElementById('splash-retry-btn').style.display = 'none';
+  document.getElementById('splash-icon').textContent = '☁️';
+  splashProgress(0, 'Nouvelle tentative…');
+  await initApp();
+}
+
+// ============================================================
 // INIT
 // ============================================================
-// Chargement initial async depuis le BIN partagé
-(async ()=>{
+async function initApp(){
   setSyncUI('syncing');
-  S = await loadFromBin();
-  setSyncUI('ok');
+  splashProgress(10, 'Connexion au cloud…');
+
+  // Tente le chargement JSONBin avec timeout de 10s
+  let loaded = false;
+  try {
+    const fetchPromise = fetch(BIN_URL, {headers: BIN_HDR});
+    const timeoutPromise = new Promise((_,r) => setTimeout(()=>r(new Error('timeout')), 10000));
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+
+    splashProgress(40, 'Données reçues…');
+
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const bin = await res.json();
+    _binCache = bin;
+
+    splashProgress(70, 'Restauration en cours…');
+
+    const shared   = bin.shared  || {};
+    const personal = bin[USER_KEY] || {};
+    S = {
+      aliments   : shared.aliments     || defaultAliments(),
+      recipes    : shared.recipes      || defaultRecipes(),
+      menu       : personal.menu       || {},
+      suivi      : personal.suivi      || {weights:[], dailyChecks:{}},
+      sport      : personal.sport      || {template:defaultSportTemplate(), weeks:{}, weekGoals:{}},
+      tdeeProfile: personal.tdeeProfile || {},
+      goals      : personal.goals      || {kcal:2000, prot:150, gluc:200, lip:65}
+    };
+    // Mettre à jour le localStorage avec les données fraîches
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
+    loaded = true;
+    splashProgress(90, 'Finalisation…');
+    setSyncUI('ok');
+
+  } catch(e) {
+    console.warn('Cloud load failed:', e.message);
+    // Fallback localStorage
+    try {
+      const v = localStorage.getItem(STORE_KEY);
+      if(v){ S = JSON.parse(v); loaded = true; setSyncUI('ok'); }
+    } catch(e2){}
+
+    if(!loaded){
+      S = emptyStore();
+      setSyncUI('error');
+      splashError('Impossible de charger les données. Vérifie ta connexion.');
+      renderAliments();
+      loadApiKeyUI();
+      return; // Laisser le splash visible avec le bouton retry
+    } else {
+      setSyncUI('ok');
+      // Avertir que c'est le cache local
+      splashProgress(100, '⚠️ Cloud indisponible — données locales');
+      document.getElementById('splash-icon').textContent = '📱';
+      setTimeout(()=>{
+        const el = document.getElementById('splash-sync');
+        if(el){ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(), 400); }
+      }, 1800);
+    }
+  }
+
   renderAliments();
   loadApiKeyUI();
-  // Refresh discret toutes les 2 minutes (pour récupérer les ajouts du mari)
+  if(loaded) splashDone();
+
+  // Refresh discret toutes les 2 minutes (pour récupérer les ajouts de Murielle)
   setInterval(async ()=>{
-    const fresh = await loadFromBin();
-    // Merge biblio partagée sans écraser les données perso locales en cours
-    S.aliments = fresh.aliments;
-    S.recipes  = fresh.recipes;
-    renderAliments();
+    try {
+      const fresh = await loadFromBin();
+      S.aliments = fresh.aliments;
+      S.recipes  = fresh.recipes;
+      renderAliments();
+    } catch(e){}
   }, 120000);
-})();
+}
+
+// Lancement
+initApp();
 </script>
 </body>
 </html>
