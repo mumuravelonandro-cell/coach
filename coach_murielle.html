@@ -172,7 +172,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div><div class="sec-title">Recettes</div><div class="sec-sub">Macros calculées automatiquement · pesés CRU</div></div>
     <div class="flex gap-8">
       <button class="btn btn-outline btn-sm" onclick="openScanRecipeModal()">📸 Photo</button>
-      <button class="btn btn-dark btn-sm" onclick="openRecipeModal()">+ Recette</button>
+      <button class="btn btn-dark btn-sm" onclick="_recipeFromMenu=false;openRecipeModal()">+ Recette</button>
     </div>
   </div>
   <div class="mb-8"><input type="text" id="rec-search" placeholder="🔍 Rechercher une recette..." oninput="renderRecipes()"></div>
@@ -579,17 +579,17 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <div class="modal-overlay hidden" id="modal-pick">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title"><span id="pick-title">Choisir une recette</span><button class="btn-icon" onclick="closeM('modal-pick')">✕</button></div>
-    <!-- Onglets Recette / Aliment seul -->
+    <!-- Onglets Recette / Aliment seul / actions rapides -->
     <div class="pill-tabs mb-12" style="margin-bottom:12px">
       <button class="pill-tab active" id="pick-tab-rec" onclick="switchPickTab('rec')">🍽️ Recette</button>
       <button class="pill-tab" id="pick-tab-alim" onclick="switchPickTab('alim')">🥦 Aliment seul</button>
+      <button class="pill-tab" onclick="openRecipeModalFromMenu()" style="border-color:var(--sage);color:var(--sage)">🍳 Créer</button>
+      <button class="pill-tab" onclick="openFreeMealModal()" style="border-color:var(--gold);color:var(--gold)">✏️ Libre</button>
     </div>
     <!-- Panneau Recette -->
     <div id="pick-panel-rec">
       <div class="mb-12"><input type="text" id="pick-search" placeholder="Rechercher une recette…" oninput="renderPickList(this.value)"></div>
       <div id="pick-list"></div>
-      <div class="divider"></div>
-      <button class="btn btn-outline w100 mb-8" onclick="openFreeMealModal()" style="border-color:var(--gold);color:var(--gold)">✏️ Repas libre (saisie manuelle)</button>
     </div>
     <!-- Panneau Aliment seul -->
     <div id="pick-panel-alim" style="display:none">
@@ -807,6 +807,7 @@ const BIN_HDR = {'Content-Type':'application/json','X-Master-Key':BIN_KEY,'X-Bin
 let _binSaveTimer = null;
 let _binLastData  = null;
 let _binCache     = null;
+let _pendingSave  = false; // true si un save cloud n'a pas encore été confirmé
 
 // Charge depuis le BIN (shared + perso), fallback localStorage
 async function loadFromBin(){
@@ -834,35 +835,66 @@ async function loadFromBin(){
   }
 }
 
-// Sauvegarde dans le BIN — utilise le cache pour eviter un GET a chaque fois
+// Sauvegarde dans le BIN — debounce 600ms, indicateur visuel, protection beforeunload
+async function _doSaveToBin(){
+  _binSaveTimer = null;
+  const data = _binLastData;
+  if(!data) return;
+  setSyncUI('syncing');
+  try{
+    let bin = _binCache;
+    if(!bin){
+      const res = await fetch(BIN_URL, {headers:BIN_HDR});
+      if(!res.ok) throw new Error('GET failed: HTTP '+res.status);
+      bin = await res.json();
+      _binCache = bin;
+    }
+    if(!bin.shared) bin.shared = {};
+    bin.shared.aliments = data.aliments;
+    bin.shared.recipes  = data.recipes;
+    bin[USER_KEY] = {
+      menu       : data.menu,
+      suivi      : data.suivi,
+      sport      : data.sport,
+      tdeeProfile: data.tdeeProfile,
+      goals      : data.goals
+    };
+    const put = await fetch(BIN_URL, {method:'PUT', headers:BIN_HDR, body:JSON.stringify(bin)});
+    if(!put.ok) throw new Error('PUT failed: HTTP '+put.status);
+    _binCache = bin;
+    _pendingSave = false;
+    setSyncUI('ok');
+  }catch(e){
+    console.warn('BIN save error', e);
+    _pendingSave = true; // sera retentée au prochain forceSyncUp ou rechargement
+    setSyncUI('error');
+  }
+}
+
 async function saveToBin(store){
   if(_binSaveTimer) clearTimeout(_binSaveTimer);
   _binLastData = store;
-  _binSaveTimer = setTimeout(async ()=>{
-    try{
-      let bin = _binCache;
-      if(!bin){
-        const res = await fetch(BIN_URL, {headers:BIN_HDR});
-        if(!res.ok) throw new Error('GET failed: HTTP '+res.status);
-        bin = await res.json();
-        _binCache = bin;
-      }
-      if(!bin.shared) bin.shared = {};
-      bin.shared.aliments = _binLastData.aliments;
-      bin.shared.recipes  = _binLastData.recipes;
-      bin[USER_KEY] = {
-        menu       : _binLastData.menu,
-        suivi      : _binLastData.suivi,
-        sport      : _binLastData.sport,
-        tdeeProfile: _binLastData.tdeeProfile,
-        goals      : _binLastData.goals
-      };
-      const put = await fetch(BIN_URL, {method:'PUT', headers:BIN_HDR, body:JSON.stringify(bin)});
-      if(!put.ok) throw new Error('PUT failed: HTTP '+put.status);
-      _binCache = bin;
-    }catch(e){ console.warn('BIN save error', e); }
-  }, 2000);
+  _pendingSave = true;
+  setSyncUI('syncing');
+  _binSaveTimer = setTimeout(_doSaveToBin, 600);
 }
+
+// Flush immédiat si on ferme/recharge la page avec un save en attente
+window.addEventListener('beforeunload', ()=>{
+  if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
+  if(_pendingSave && _binLastData && _binCache){
+    // Mise à jour synchrone du cache local en dernier recours
+    try{localStorage.setItem(STORE_KEY, JSON.stringify(_binLastData));}catch(e){}
+    // Tentative beacon (best-effort, ne bloque pas la fermeture)
+    const bin = {..._binCache};
+    if(!bin.shared) bin.shared = {};
+    bin.shared.aliments = _binLastData.aliments;
+    bin.shared.recipes  = _binLastData.recipes;
+    bin[USER_KEY] = {menu:_binLastData.menu,suivi:_binLastData.suivi,sport:_binLastData.sport,tdeeProfile:_binLastData.tdeeProfile,goals:_binLastData.goals};
+    navigator.sendBeacon && navigator.sendBeacon('/dev/null'); // keep-alive hint
+    fetch(BIN_URL,{method:'PUT',headers:BIN_HDR,body:JSON.stringify(bin),keepalive:true}).catch(()=>{});
+  }
+});
 // Goals — dynamiques via l'onglet Objectifs
 function getGoal(k){ return (S.goals&&S.goals[k]) || {kcal:968,prot:110,gluc:87,lip:20}[k]; }
 function GOAL_KCAL(){ return getGoal('kcal'); }
@@ -1874,7 +1906,16 @@ function renderRecipes(){
   }).join('');
 }
 
+let _recipeFromMenu=false;
+
+function openRecipeModalFromMenu(){
+  _recipeFromMenu=true;
+  closeM('modal-pick');
+  openRecipeModal();
+}
+
 function openRecipeModal(id){
+  if(id) _recipeFromMenu=false; // depuis la page recettes, jamais fromMenu
   editRecId=id||null;
   const r=id?S.recipes.find(x=>x.id===id):null;
   document.getElementById('rec-modal-title').textContent=id?'Modifier la recette':'Nouvelle recette';
@@ -2016,7 +2057,23 @@ function saveRecipe(){
   const obj={id:editRecId||('r'+Date.now()),name,cats,cat:cats[0],url:document.getElementById('rec-url').value.trim(),ingredients:ings};
   if(editRecId){const idx=S.recipes.findIndex(r=>r.id===editRecId);if(idx>=0)S.recipes[idx]=obj;}
   else S.recipes.push(obj);
-  save();closeM('modal-recipe');renderRecipes();
+  save();closeM('modal-recipe');
+  if(_recipeFromMenu&&pickingSlot&&!editRecId){
+    // Ajouter directement la nouvelle recette au slot du menu
+    const {dk,slot}=pickingSlot;
+    const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
+    if(!S.menu[wk])S.menu[wk]={};
+    if(!S.menu[wk][dk])S.menu[wk][dk]={};
+    const ids=getSlotIds(S.menu[wk][dk],slot);
+    ids.push(obj.id);
+    S.menu[wk][dk][slot]=ids;
+    save();
+    _recipeFromMenu=false;
+    renderMenu();
+  } else {
+    _recipeFromMenu=false;
+    renderRecipes();
+  }
 }
 
 function deleteRecipe(){
@@ -2797,8 +2854,9 @@ function renderSport(){
           <div style="flex:1">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
               <div style="display:flex;align-items:center;gap:6px">
-                <input type="number" min="0" max="99999" value="${daySteps||''}" onchange="updateSteps('${dayIso}',this.value)" placeholder="Pas du jour..." style="border:none;background:transparent;font-family:inherit;font-size:12px;color:#1A1410;outline:none;width:90px">
+                <input type="number" min="0" max="99999" value="${daySteps||''}" oninput="updateSteps('${dayIso}',this.value)" placeholder="Pas du jour..." style="border:none;background:transparent;font-family:inherit;font-size:12px;color:#1A1410;outline:none;width:90px">
                 <span style="font-size:11px;color:#9B8B7E">/ 10 000</span>
+                ${daySteps>0?`<button onclick="updateSteps('${dayIso}',0)" title="Remettre à 0" style="border:none;background:none;cursor:pointer;font-size:11px;color:#9B8B7E;padding:0 2px;line-height:1">✕</button>`:''}
               </div>
               <span style="font-size:11px;font-weight:600;color:${stepsCol}">${daySteps>=GOAL?'🎉 Objectif !':daySteps>0?Math.round(stepsPct2*100)+'%':'—'}</span>
             </div>
@@ -2861,8 +2919,9 @@ function quickDoneSport(sessionId,dayIdx,isTemplate){
 
 function updateSteps(dayIso,val){
   if(!S.suivi.dailySteps)S.suivi.dailySteps={};
-  S.suivi.dailySteps[dayIso]=Math.max(0,parseInt(val)||0);
-  save();
+  const parsed=parseInt(val)||0;
+  S.suivi.dailySteps[dayIso]=Math.min(99999,Math.max(0,parsed));
+  save();renderSport();
 }
 
 function sportWkNav(dir){
@@ -3229,26 +3288,41 @@ async function splashRetry(){
 // INIT
 // ============================================================
 async function initApp(){
-  setSyncUI('syncing');
-  splashProgress(10, 'Connexion au cloud…');
+  // ── Étape 1 : Affichage immédiat depuis localStorage (< 5ms) ──
+  let hasLocal = false;
+  try {
+    const v = localStorage.getItem(STORE_KEY);
+    if(v){ S = JSON.parse(v); hasLocal = true; }
+  } catch(e){}
 
-  let loaded = false;
+  if(hasLocal){
+    // Afficher l'app tout de suite, sans attendre le cloud
+    renderAliments();
+    loadApiKeyUI();
+    migrateFreeMeals();
+    splashProgress(60, 'Données locales chargées…');
+    setSyncUI('syncing');
+    // Fermer le splash rapidement
+    setTimeout(()=>{
+      const el = document.getElementById('splash-sync');
+      if(el){ el.style.opacity='0'; el.style.transition='opacity 0.35s'; setTimeout(()=>el.remove(), 350); }
+    }, 350);
+  } else {
+    splashProgress(10, 'Connexion au cloud…');
+  }
+
+  // ── Étape 2 : Sync cloud en arrière-plan (ou en foreground si pas de cache local) ──
   try {
     const fetchPromise = fetch(BIN_URL, {headers: BIN_HDR});
-    const timeoutPromise = new Promise((_,r) => setTimeout(()=>r(new Error('timeout')), 10000));
+    const timeoutPromise = new Promise((_,r) => setTimeout(()=>r(new Error('timeout')), 8000));
     const res = await Promise.race([fetchPromise, timeoutPromise]);
-
-    splashProgress(40, 'Données reçues…');
-
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const bin = await res.json();
     _binCache = bin;
 
-    splashProgress(70, 'Restauration en cours…');
-
     const shared   = bin.shared  || {};
     const personal = bin[USER_KEY] || {};
-    S = {
+    const cloudS = {
       aliments   : shared.aliments     || defaultAliments(),
       recipes    : shared.recipes      || defaultRecipes(),
       menu       : personal.menu       || {},
@@ -3257,50 +3331,52 @@ async function initApp(){
       tdeeProfile: personal.tdeeProfile || {},
       goals      : personal.goals      || {kcal:968, prot:110, gluc:87, lip:20}
     };
+
+    // Merge : si un save est en attente, ne pas écraser les données locales non sauvegardées
+    if(_pendingSave){
+      // Garder les données perso locales, mettre à jour seulement le shared (aliments/recettes)
+      S.aliments = cloudS.aliments;
+      S.recipes  = cloudS.recipes;
+    } else {
+      S = cloudS;
+    }
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
-    loaded = true;
-    splashProgress(90, 'Finalisation…');
     setSyncUI('ok');
+    renderAliments();
+
+    if(!hasLocal){
+      loadApiKeyUI();
+      migrateFreeMeals();
+      splashDone();
+    }
 
   } catch(e) {
     console.warn('Cloud load failed:', e.message);
-    try {
-      const v = localStorage.getItem(STORE_KEY);
-      if(v){ S = JSON.parse(v); loaded = true; setSyncUI('ok'); }
-    } catch(e2){}
-
-    if(!loaded){
+    setSyncUI(hasLocal ? 'ok' : 'error');
+    if(!hasLocal){
       S = emptyStore();
-      setSyncUI('error');
       splashError('Impossible de charger les données. Vérifie ta connexion.');
       renderAliments();
       loadApiKeyUI();
       return;
-    } else {
-      setSyncUI('ok');
-      splashProgress(100, '⚠️ Cloud indisponible — données locales');
-      document.getElementById('splash-icon').textContent = '📱';
-      setTimeout(()=>{
-        const el = document.getElementById('splash-sync');
-        if(el){ el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(), 400); }
-      }, 1800);
     }
   }
 
-  renderAliments();
-  loadApiKeyUI();
-  migrateFreeMeals(); // purge anciens repas libres stockés dans recipes
-  if(loaded) splashDone();
-
-  // Refresh discret toutes les 2 minutes (pour récupérer les ajouts du mari)
+  // ── Étape 3 : Refresh discret toutes les 3 minutes (shared lib seulement) ──
   setInterval(async ()=>{
+    if(_pendingSave) return; // Ne pas écraser si un save est en cours
     try {
-      const fresh = await loadFromBin();
-      S.aliments = fresh.aliments;
-      S.recipes  = fresh.recipes;
+      const res = await fetch(BIN_URL, {headers: BIN_HDR});
+      if(!res.ok) return;
+      const bin = await res.json();
+      _binCache = bin;
+      const shared = bin.shared || {};
+      if(shared.aliments) S.aliments = shared.aliments;
+      if(shared.recipes)  S.recipes  = shared.recipes;
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
       renderAliments();
     } catch(e){}
-  }, 120000);
+  }, 180000);
 }
 
 // Lancement
