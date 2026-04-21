@@ -38,6 +38,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 .tag-l{background:#FFF0EB;color:var(--terra)}
 .tag-k{background:#F0FAF0;color:var(--sage)}
 .modal-overlay{position:fixed;inset:0;background:rgba(15,61,31,.55);z-index:500;display:flex;align-items:flex-end;justify-content:center}
+.modal-overlay.z-top{z-index:600}
 @media(min-width:600px){.modal-overlay{align-items:center;padding:20px}}
 .modal{background:#fff;border-radius:22px 22px 0 0;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;padding:22px 20px}
 @media(min-width:600px){.modal{border-radius:22px}}
@@ -153,7 +154,15 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
       <button class="btn btn-dark btn-sm" onclick="openAlimentModal()">+ Aliment</button>
     </div>
   </div>
-  <div class="mb-12"><input type="text" id="alim-search" placeholder="🔍 Rechercher un aliment..." oninput="renderAliments()"></div>
+  <div class="mb-8"><input type="text" id="alim-search" placeholder="🔍 Rechercher un aliment..." oninput="renderAliments()"></div>
+  <div class="flex-b mb-12" style="gap:8px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px">Trier par :</div>
+    <div class="flex gap-6" id="alim-sort-tabs">
+      <button class="pill-tab active" style="padding:3px 10px;font-size:11px" onclick="setAlimSort('name',this)">Nom</button>
+      <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setAlimSort('kcal',this)">Kcal ↓</button>
+      <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setAlimSort('prot',this)">Prot ↓</button>
+    </div>
+  </div>
   <div id="alim-list"></div>
 </div>
 
@@ -166,12 +175,21 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
       <button class="btn btn-dark btn-sm" onclick="openRecipeModal()">+ Recette</button>
     </div>
   </div>
+  <div class="mb-8"><input type="text" id="rec-search" placeholder="🔍 Rechercher une recette..." oninput="renderRecipes()"></div>
   <div class="pill-tabs" id="rec-filter-tabs">
     <button class="pill-tab active" onclick="filterRec('all',this)">Toutes</button>
     <button class="pill-tab" onclick="filterRec('petit-dej',this)">🌅 Petit-dej</button>
     <button class="pill-tab" onclick="filterRec('déjeuner',this)">☀️ Déjeuner</button>
     <button class="pill-tab" onclick="filterRec('collation',this)">🍎 Collation</button>
     <button class="pill-tab" onclick="filterRec('dîner',this)">🌙 Dîner</button>
+  </div>
+  <div class="flex-b mb-12" style="gap:8px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px">Trier par :</div>
+    <div class="flex gap-6" id="rec-sort-tabs">
+      <button class="pill-tab active" style="padding:3px 10px;font-size:11px" onclick="setRecSort('name',this)">Nom</button>
+      <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setRecSort('kcal',this)">Kcal ↓</button>
+      <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setRecSort('prot',this)">Prot ↓</button>
+    </div>
   </div>
   <div id="rec-list"></div>
 </div>
@@ -186,6 +204,8 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     </div>
   </div>
   <div class="week-grid" id="menu-days-grid"></div>
+  <!-- Synthèse semaine -->
+  <div id="week-summary" style="margin-bottom:12px;padding:10px 14px;background:var(--cream);border-radius:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"></div>
   <div class="card mb-14" id="day-nut-card">
     <div class="ring-wrap">
       <div class="ring">
@@ -201,6 +221,11 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--proto)">P</span><div class="mbar-bg"><div class="mbar" id="bar-p" style="width:0%;background:var(--proto)"></div></div><span class="mbar-val" id="val-p">0g</span></div>
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--gold)">G</span><div class="mbar-bg"><div class="mbar" id="bar-g" style="width:0%;background:var(--gold)"></div></div><span class="mbar-val" id="val-g">0g</span></div>
         <div class="mbar-row"><span class="mbar-lbl" style="color:var(--terra)">L</span><div class="mbar-bg"><div class="mbar" id="bar-l" style="width:0%;background:var(--terra)"></div></div><span class="mbar-val" id="val-l">0g</span></div>
+        <div id="resto-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+          <span style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase">Restant</span>
+          <span id="resto-kcal" style="font-size:13px;font-weight:700;color:var(--dark)">— kcal</span>
+          <span id="resto-macros" style="font-size:11px;color:var(--muted)">—</span>
+        </div>
       </div>
     </div>
   </div>
@@ -377,7 +402,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <!-- ========= MODALS ========= -->
 
 <!-- Aliment Modal -->
-<div class="modal-overlay hidden" id="modal-aliment">
+<div class="modal-overlay z-top hidden" id="modal-aliment">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title"><span id="alim-modal-title">Nouvel aliment</span><button class="btn-icon" onclick="closeM('modal-aliment')">✕</button></div>
     <div class="g2 gap-8 mb-12">
@@ -615,9 +640,10 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         <div style="text-align:center;padding:7px;background:#fff;border-radius:9px"><div style="font-size:17px;font-weight:800;color:var(--terra)" id="mre-lip">0g</div><div class="text-m">lipides</div></div>
       </div>
     </div>
-    <div class="g2 gap-8">
-      <button class="btn btn-dark" onclick="saveMreAsNew()">💾 Enregistrer comme nouvelle recette</button>
-      <button class="btn btn-outline" onclick="saveMreOverwrite()">🔄 Écraser la recette originale</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-dark w100" onclick="saveMreOverwrite()">🔄 Écraser la recette existante</button>
+      <button class="btn btn-outline w100" onclick="saveMreAsNew()">✨ Créer une nouvelle recette</button>
+      <button class="btn btn-outline w100" onclick="saveMreMenuOnly()" style="font-size:12px">📅 Juste pour ce menu (sans modifier la bibliothèque)</button>
     </div>
   </div>
 </div>
@@ -642,7 +668,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- Missing Ingredient Modal -->
-<div class="modal-overlay hidden" id="modal-missing-ingr">
+<div class="modal-overlay z-top hidden" id="modal-missing-ingr">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">🔍 Aliment introuvable <button class="btn-icon" onclick="closeM('modal-missing-ingr')">✕</button></div>
     <div style="font-size:13px;margin-bottom:5px">L'aliment <strong id="missing-ingr-name"></strong> n'est pas dans ta bibliothèque.</div>
@@ -656,7 +682,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- Editable Scan Result Modal (aliment) -->
-<div class="modal-overlay hidden" id="modal-scan-edit">
+<div class="modal-overlay z-top hidden" id="modal-scan-edit">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">✅ Aliment détecté — Vérifier <button class="btn-icon" onclick="closeM('modal-scan-edit')">✕</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Modifie si besoin, puis enregistre.</div>
@@ -750,6 +776,18 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div style="display:flex;gap:9px">
       <button onclick="saveSportSession()" style="flex:1;background:#1A1410;border:none;border-radius:13px;padding:12px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit" id="sport-save-btn">Ajouter</button>
       <button onclick="deleteSportSession()" id="sport-del-btn" style="display:none;background:#FEF0F0;border:1.5px solid #FECACA;border-radius:13px;padding:12px 15px;color:#E05252;font-size:12px;cursor:pointer;font-family:inherit">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale de confirmation générique -->
+<div class="modal-overlay hidden" id="modal-confirm" onclick="cancelConfirm()">
+  <div class="modal" style="max-width:380px" onclick="event.stopPropagation()">
+    <div class="modal-title" id="confirm-title" style="font-size:16px">Confirmer ?</div>
+    <div id="confirm-body" style="font-size:13px;color:var(--dark);margin-bottom:20px;line-height:1.5"></div>
+    <div class="flex gap-8">
+      <button class="btn btn-outline w100" onclick="cancelConfirm()">Annuler</button>
+      <button class="btn w100" style="background:var(--red);color:#fff" onclick="doConfirm()">Supprimer</button>
     </div>
   </div>
 </div>
@@ -911,6 +949,13 @@ function save(){
   saveToBin(S);
 }
 
+// Migration : purge les anciens repas libres/aliments seuls qui étaient stockés dans S.recipes
+function migrateFreeMeals(){
+  const before=S.recipes.length;
+  S.recipes=S.recipes.filter(r=>!r.isFree&&!r.isAlimSingle);
+  if(S.recipes.length<before) save();
+}
+
 // Bouton sync manuel dans la nav
 let syncStatus = null;
 async function forceSyncUp(){
@@ -1062,10 +1107,28 @@ function showTab(tab,btn){
 // ============================================================
 let editAlimId=null;
 
+let alimSort='name', recSort='name';
+
+function setAlimSort(key,btn){
+  alimSort=key;
+  document.querySelectorAll('#alim-sort-tabs .pill-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderAliments();
+}
+function setRecSort(key,btn){
+  recSort=key;
+  document.querySelectorAll('#rec-sort-tabs .pill-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderRecipes();
+}
+
 function renderAliments(){
   const q=(document.getElementById('alim-search').value||'').toLowerCase();
   const list=document.getElementById('alim-list');
   let alims=S.aliments.filter(a=>!q||a.name.toLowerCase().includes(q)||(a.brand&&a.brand.toLowerCase().includes(q)));
+  if(alimSort==='kcal')alims.sort((a,b)=>b.kcal100-a.kcal100);
+  else if(alimSort==='prot')alims.sort((a,b)=>b.prot100-a.prot100);
+  else alims.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   if(!alims.length){list.innerHTML='<div class="empty"><div class="ei">🥦</div>Aucun aliment trouvé</div>';return;}
   list.innerHTML=alims.map(a=>`
     <div class="rec-card" onclick="openAlimentModal('${a.id}')">
@@ -1100,6 +1163,8 @@ function openAlimentModal(id){
   openM('modal-aliment');
 }
 
+let _pendingPickAlimName='';
+
 function saveAliment(){
   const name=document.getElementById('alim-name').value.trim();
   if(!name)return alert('Nom obligatoire');
@@ -1117,13 +1182,38 @@ function saveAliment(){
   if(editAlimId){const idx=S.aliments.findIndex(a=>a.id===editAlimId);if(idx>=0)S.aliments[idx]=obj;}
   else S.aliments.push(obj);
   save();closeM('modal-aliment');renderAliments();
+  // Si on venait du panneau "aliment seul" du menu, rouvrir le pick et pré-sélectionner
+  if(_pendingPickAlimName){
+    _pendingPickAlimName='';
+    setTimeout(()=>{
+      openM('modal-pick');
+      switchPickTab('alim');
+      document.getElementById('pick-alim-search').value=obj.name;
+      selectPickAlim(obj.id, obj.name, obj.kcal100, obj.prot100, obj.gluc100||0, obj.lip100);
+    },100);
+  }
 }
 
 function deleteAliment(){
-  if(!confirm('Supprimer cet aliment ? Les recettes utilisant cet aliment seront affectées.'))return;
-  S.aliments=S.aliments.filter(a=>a.id!==editAlimId);
-  save();closeM('modal-aliment');renderAliments();
+  const a=S.aliments.find(x=>x.id===editAlimId);
+  if(!a)return;
+  showConfirm(
+    '🗑️ Supprimer cet aliment ?',
+    `<strong>${a.name}</strong>${a.brand?' · '+a.brand:''}<br><span style="color:var(--red);font-size:12px">⚠️ Les recettes utilisant cet aliment seront affectées.</span>`,
+    ()=>{S.aliments=S.aliments.filter(x=>x.id!==editAlimId);save();closeM('modal-aliment');renderAliments();}
+  );
 }
+
+// Modale de confirmation générique
+let _confirmCb=null;
+function showConfirm(title,body,cb){
+  document.getElementById('confirm-title').textContent=title;
+  document.getElementById('confirm-body').innerHTML=body;
+  _confirmCb=cb;
+  openM('modal-confirm');
+}
+function doConfirm(){if(_confirmCb){_confirmCb();_confirmCb=null;}closeM('modal-confirm');}
+function cancelConfirm(){_confirmCb=null;closeM('modal-confirm');}
 
 // ============================================================
 // API KEY MANAGEMENT
@@ -1555,7 +1645,10 @@ function openMissingIngrModal(name, row){
 
 function addMissingManual(){
   const name=document.getElementById('modal-missing-ingr').dataset.ingrName||'';
+  const fromMenu=document.getElementById('modal-missing-ingr').dataset.fromMenu==='1';
+  document.getElementById('modal-missing-ingr').dataset.fromMenu='';
   closeM('modal-missing-ingr');
+  if(fromMenu) _pendingPickAlimName=name;
   openAlimentModal();
   setTimeout(()=>{
     document.getElementById('alim-name').value=name;
@@ -1564,8 +1657,21 @@ function addMissingManual(){
 
 function addMissingPhoto(){
   const name=document.getElementById('modal-missing-ingr').dataset.ingrName||'';
+  const fromMenu=document.getElementById('modal-missing-ingr').dataset.fromMenu==='1';
+  document.getElementById('modal-missing-ingr').dataset.fromMenu='';
+  if(fromMenu) _pendingPickAlimName=name;
   closeM('modal-missing-ingr');
   openScanModal();
+}
+
+// Variante : ouverture depuis le panneau "Aliment seul" du menu
+function openMissingAlimFromMenu(name){
+  _missingIngrRow=null;
+  document.getElementById('missing-ingr-name').textContent='"'+name+'"';
+  document.getElementById('modal-missing-ingr').dataset.ingrName=name;
+  document.getElementById('modal-missing-ingr').dataset.fromMenu='1';
+  document.getElementById('pick-alim-dropdown').classList.add('hidden');
+  openM('modal-missing-ingr');
 }
 
 // ============================================================
@@ -1611,7 +1717,18 @@ function confirmScanEdit(){
   closeM('modal-scan-edit');
   closeScanModal();
   renderAliments();
-  showTab('aliments',document.querySelector('.nav-tab'));
+  // Si on venait du panneau "aliment seul" du menu, rouvrir le pick et pré-sélectionner
+  if(_pendingPickAlimName){
+    _pendingPickAlimName='';
+    setTimeout(()=>{
+      openM('modal-pick');
+      switchPickTab('alim');
+      document.getElementById('pick-alim-search').value=obj.name;
+      selectPickAlim(obj.id, obj.name, obj.kcal100, obj.prot100, obj.gluc100||0, obj.lip100);
+    },150);
+  } else {
+    showTab('aliments',document.querySelector('.nav-tab'));
+  }
 }
 
 // ============================================================
@@ -1692,29 +1809,20 @@ function saveFreeMeal(){
   const gluc=parseFloat(document.getElementById('free-gluc').value)||0;
   const lip=parseFloat(document.getElementById('free-lip').value)||0;
   if(!kcal&&!prot&&!gluc&&!lip)return alert('Saisis au moins une valeur nutritionnelle.');
-  // Create a virtual "free meal" recipe
-  const freeId='free_'+Date.now();
-  const fakeAlimId='alim_free_'+Date.now();
-  // Store as a recipe with a special flag
-  const obj={
-    id:freeId,
+  // Objet inline — pas stocké dans S.recipes
+  const inlineObj={
+    id:'free_'+Date.now(),
     name,
-    cats:['libre'],cat:'libre',
-    url:'',
     isFree:true,
-    freeMacros:{kcal,prot,gluc,lip},
-    ingredients:[]
+    freeMacros:{kcal,prot,gluc,lip}
   };
-  S.recipes.push(obj);
-  save();
-  // Assign to slot
   if(pickingSlot){
     const{dk,slot}=pickingSlot;
     const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
     if(!S.menu[wk])S.menu[wk]={};
     if(!S.menu[wk][dk])S.menu[wk][dk]={};
     const cur=getSlotIds(S.menu[wk][dk],slot);
-    S.menu[wk][dk][slot]=[...cur,freeId];
+    S.menu[wk][dk][slot]=[...cur,inlineObj];
     save();
   }
   closeM('modal-free-meal');
@@ -1734,12 +1842,17 @@ function filterRec(cat,btn){
 }
 
 function renderRecipes(){
+  const q=(document.getElementById('rec-search')?.value||'').toLowerCase();
   const list=document.getElementById('rec-list');
-  let recs=S.recipes;
+  let recs=S.recipes.filter(r=>!r.isMenuOnly&&!r.isFree&&!r.isAlimSingle);
   if(recFilter!=='all')recs=recs.filter(r=>{
     const cats=Array.isArray(r.cats)?r.cats:[r.cat];
     return cats.includes(recFilter);
   });
+  if(q)recs=recs.filter(r=>r.name.toLowerCase().includes(q));
+  if(recSort==='kcal')recs.sort((a,b)=>calcMacros(b.ingredients).kcal-calcMacros(a.ingredients).kcal);
+  else if(recSort==='prot')recs.sort((a,b)=>calcMacros(b.ingredients).prot-calcMacros(a.ingredients).prot);
+  else recs.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   if(!recs.length){list.innerHTML='<div class="empty"><div class="ei">🍳</div>Aucune recette</div>';return;}
   list.innerHTML=recs.map(r=>{
     const m=calcMacros(r.ingredients);
@@ -1936,26 +2049,40 @@ function renderMenu(){
   const wk=weekKey(mon);
   const today=todayKey();
   document.getElementById('menu-week-lbl').textContent=`Semaine du ${mon.toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}`;
-  if(!curMenuDay)curMenuDay=isoDate(addDays(mon,0));
   const monIso=isoDate(mon), sunIso=isoDate(addDays(mon,6));
-  if(curMenuDay<monIso||curMenuDay>sunIso)curMenuDay=isoDate(addDays(mon,0));
+  if(!curMenuDay)curMenuDay=today;
+  if(curMenuDay<monIso||curMenuDay>sunIso)curMenuDay=(today>=monIso&&today<=sunIso)?today:monIso;
 
   const weekData=S.menu[wk]||{};
   const grid=document.getElementById('menu-days-grid');
+  let wkTotalKcal=0, wkDaysLogged=0;
   grid.innerHTML=DAYS_SHORT.map((d,i)=>{
     const dk=isoDate(addDays(mon,i));
     const dm=weekData[dk]||{};
     const kcal=Object.keys(dm).reduce((acc,slot)=>{
-      return acc+getSlotIds(dm,slot).reduce((a2,rid)=>{
-        const r=S.recipes.find(x=>x.id===rid);const m=getRecipeMacros(r);return a2+(m?m.kcal:0);
+      return acc+getSlotIds(dm,slot).reduce((a2,entry)=>{
+        const r=resolveEntry(entry);const m=getRecipeMacros(r);return a2+(m?m.kcal:0);
       },0);
     },0);
+    if(kcal>0){wkTotalKcal+=kcal;wkDaysLogged++;}
     const isTd=dk===today, isSel=dk===curMenuDay;
     return`<div class="day-pill ${isSel?'active':''}" onclick="selMenuDay('${dk}')">
       <div class="dn" style="${isTd?'color:var(--terra)':''}">${d}</div>
       <div class="dk" style="color:${kcal>0?(kcal>GOAL_KCAL()?'var(--red)':'var(--sage)'):'var(--border)'}">${kcal>0?kcal:'-'}</div>
     </div>`;
   }).join('');
+
+  // Synthèse semaine
+  const sumEl=document.getElementById('week-summary');
+  if(wkDaysLogged>0){
+    const avgKcal=Math.round(wkTotalKcal/wkDaysLogged);
+    const goalK=GOAL_KCAL();
+    const avgColor=goalK>0?(avgKcal>goalK?'var(--red)':avgKcal/goalK<0.8?'#F5A623':'var(--sage)'):'var(--dark)';
+    sumEl.innerHTML=`<span style="font-size:11px;font-weight:600;color:var(--muted)">SEMAINE · ${wkDaysLogged} jour${wkDaysLogged>1?'s':''} renseigné${wkDaysLogged>1?'s':''}</span><span style="font-size:13px;font-weight:700;color:var(--dark)">Total : ${wkTotalKcal} kcal</span><span style="font-size:12px;font-weight:600;color:${avgColor}">Moy/j : ${avgKcal} kcal${goalK>0?' / obj. '+goalK:''}</span>`;
+    sumEl.style.display='flex';
+  } else {
+    sumEl.style.display='none';
+  }
 
   renderDayMenu();
 }
@@ -1970,21 +2097,37 @@ function getSlotIds(dayMenu, slot){
   return [v];
 }
 
+// Résout une entrée de slot (string ID ou objet inline) en objet recipe-like
+function resolveEntry(entry){
+  if(!entry) return null;
+  if(typeof entry === 'string') return S.recipes.find(x=>x.id===entry)||null;
+  return entry;
+}
+
+// Retourne l'id d'une entrée (string ou objet inline)
+function entryId(entry){
+  if(typeof entry === 'string') return entry;
+  return entry && entry.id;
+}
+
 function renderDayMenu(){
   if(!curMenuDay)return;
   const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
   const dayMenu=(S.menu[wk]||{})[curMenuDay]||{};
   let tp=0,tg=0,tl=0,tk=0;
   MEAL_SLOTS.forEach(slot=>{
-    getSlotIds(dayMenu,slot).forEach(rid=>{
-      const r=S.recipes.find(x=>x.id===rid);const m=getRecipeMacros(r);
+    getSlotIds(dayMenu,slot).forEach(entry=>{
+      const r=resolveEntry(entry);const m=getRecipeMacros(r);
       if(m){tp+=m.prot;tg+=m.gluc;tl+=m.lip;tk+=m.kcal;}
     });
   });
   // Ring
-  const pct=Math.min(tk/GOAL_KCAL(),1),circ=195;
+  const goal=GOAL_KCAL();
+  const pct=goal>0?Math.min(tk/goal,1):0,circ=195;
   document.getElementById('kcal-arc').style.strokeDashoffset=circ-pct*circ;
-  document.getElementById('kcal-arc').style.stroke=tk>GOAL_KCAL()?'var(--red)':'var(--terra)';
+  const ringColor=goal<=0?'var(--terra)':tk>goal?'var(--red)':tk/goal<0.5?'var(--border)':tk/goal<0.8?'#F5A623':'var(--terra)';
+  document.getElementById('kcal-arc').style.stroke=ringColor;
+  document.getElementById('kcal-val').style.color=goal>0&&tk/goal<0.5&&tk>0?'var(--muted)':'var(--dark)';
   document.getElementById('kcal-val').textContent=tk;
   document.getElementById('bar-p').style.width=Math.min(tp/GOAL_P()*100,100)+'%';
   document.getElementById('bar-g').style.width=Math.min(tg/GOAL_G()*100,100)+'%';
@@ -1993,6 +2136,19 @@ function renderDayMenu(){
   document.getElementById('val-g').textContent=Math.round(tg*10)/10+'g';
   document.getElementById('val-l').textContent=Math.round(tl*10)/10+'g';
   document.getElementById('kcal-goal-lbl').textContent='obj. '+GOAL_KCAL()+' kcal';
+  // Restants
+  const rk=GOAL_KCAL()-tk, rp=Math.round((GOAL_P()-tp)*10)/10, rg=Math.round((GOAL_G()-tg)*10)/10, rl=Math.round((GOAL_L()-tl)*10)/10;
+  const hasGoal=GOAL_KCAL()>0;
+  const restoKcalEl=document.getElementById('resto-kcal');
+  const restoMacrosEl=document.getElementById('resto-macros');
+  if(hasGoal){
+    restoKcalEl.textContent=(rk>=0?'+'+rk:rk)+' kcal';
+    restoKcalEl.style.color=rk<0?'var(--red)':'var(--sage)';
+    restoMacrosEl.textContent=`P ${rp>=0?'+'+rp:rp}g · G ${rg>=0?'+'+rg:rg}g · L ${rl>=0?'+'+rl:rl}g`;
+    restoMacrosEl.style.color=rk<0?'var(--red)':'var(--muted)';
+  } else {
+    restoKcalEl.textContent='Objectif non défini'; restoMacrosEl.textContent='';
+  }
   // Day title
   const dayIdx=(new Date(curMenuDay+'T12:00:00')).getDay();
   const dayName=DAYS_FULL[dayIdx===0?6:dayIdx-1];
@@ -2001,7 +2157,7 @@ function renderDayMenu(){
   const slotsEl=document.getElementById('menu-slots');
   slotsEl.innerHTML=MEAL_SLOTS.map(slot=>{
     const rids=getSlotIds(dayMenu,slot);
-    const items=rids.map(rid=>S.recipes.find(x=>x.id===rid)).filter(Boolean);
+    const items=rids.map(entry=>resolveEntry(entry)).filter(Boolean);
     const hasItems=items.length>0;
     const itemsHtml=items.map((r,idx)=>{
       const m=getRecipeMacros(r);
@@ -2020,9 +2176,17 @@ function renderDayMenu(){
       </div>`;
     }).join(items.length>1?`<div style="height:1px;background:var(--border);margin:0 0 8px 0"></div>`:'');
 
+    const slotKcal=items.reduce((acc,r)=>{const m=getRecipeMacros(r);return acc+(m?m.kcal:0);},0);
+    const slotProt=Math.round(items.reduce((acc,r)=>{const m=getRecipeMacros(r);return acc+(m?m.prot:0);},0)*10)/10;
+    const slotGluc=Math.round(items.reduce((acc,r)=>{const m=getRecipeMacros(r);return acc+(m?m.gluc:0);},0)*10)/10;
+    const slotLip=Math.round(items.reduce((acc,r)=>{const m=getRecipeMacros(r);return acc+(m?m.lip:0);},0)*10)/10;
+
     return`<div class="meal-slot ${hasItems?'filled':''}" style="${hasItems?'cursor:default':''}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div class="meal-label" style="margin-bottom:0">${MEAL_LABELS[slot]}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="meal-label" style="margin-bottom:0">${MEAL_LABELS[slot]}</div>
+          ${slotKcal>0?`<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="font-size:11px;font-weight:700;color:var(--terra);background:rgba(200,100,50,0.08);border-radius:6px;padding:2px 7px">${slotKcal} kcal</span><span style="font-size:11px;font-weight:600;color:var(--proto)">P ${slotProt}g</span><span style="font-size:11px;font-weight:600;color:var(--gold)">G ${slotGluc}g</span><span style="font-size:11px;font-weight:600;color:var(--terra)">L ${slotLip}g</span></div>`:''}
+        </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
           ${hasItems?'<div style="width:35px"></div>':''}
           <button onclick="openPickModal('${slot}')" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:4px 9px;font-size:12px;font-weight:600;color:var(--dark);cursor:pointer;font-family:inherit">+ Ajouter</button>
@@ -2036,7 +2200,7 @@ function renderDayMenu(){
 function removeSlotItem(slot, rid){
   const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
   if(!S.menu[wk]||!S.menu[wk][curMenuDay])return;
-  const ids=getSlotIds(S.menu[wk][curMenuDay],slot).filter(id=>id!==rid);
+  const ids=getSlotIds(S.menu[wk][curMenuDay],slot).filter(entry=>entryId(entry)!==rid);
   if(ids.length===0) delete S.menu[wk][curMenuDay][slot];
   else S.menu[wk][curMenuDay][slot]=ids;
   save();renderMenu();
@@ -2158,6 +2322,14 @@ function getMreData(){
 function saveMreAsNew(){
   const d=getMreData();if(!d)return;
   const orig=S.recipes.find(x=>x.id===_mreRecId);
+  // Le nom doit être différent de l'original
+  if(orig&&d.name.trim().toLowerCase()===orig.name.trim().toLowerCase()){
+    alert('⚠️ Pour créer une nouvelle recette, tu dois lui donner un nom différent de l\'original ("'+orig.name+'").');
+    return;
+  }
+  // Vérifier doublon de nom
+  const dup=S.recipes.find(r=>r.name.toLowerCase()===d.name.toLowerCase()&&r.id!==_mreRecId);
+  if(dup){alert('❌ Une recette nommée "'+dup.name+'" existe déjà.');return;}
   const newRec={
     ...orig,
     id:'r'+Date.now(),
@@ -2178,16 +2350,38 @@ function saveMreAsNew(){
 
 function saveMreOverwrite(){
   const d=getMreData();if(!d)return;
-  if(!confirm('Écraser la recette originale "'+d.name+'" ? Cette modification s\'appliquera partout où elle est utilisée.'))return;
+  if(!confirm('Écraser la recette "'+d.name+'" dans la bibliothèque ? Cette modification s\'appliquera partout où elle est utilisée.'))return;
   const idx=S.recipes.findIndex(x=>x.id===_mreRecId);
   if(idx<0)return;
   S.recipes[idx]={...S.recipes[idx],name:d.name,ingredients:d.ingrs};
   save();closeM('modal-menu-rec-edit');renderMenu();renderRecipes();
 }
 
+// Enregistre une version temporaire juste pour ce créneau du menu, sans toucher à la bibliothèque
+function saveMreMenuOnly(){
+  const d=getMreData();if(!d)return;
+  if(!_mreSlot||!curMenuDay){alert('Aucun créneau menu actif.');return;}
+  const orig=S.recipes.find(x=>x.id===_mreRecId);
+  // Créer une recette "fantôme" non visible dans la bibliothèque
+  const tmpRec={
+    ...(orig||{}),
+    id:'rtmp'+Date.now(),
+    name:d.name,
+    ingredients:d.ingrs,
+    isMenuOnly:true // marqueur pour l'exclure de la bibliothèque
+  };
+  S.recipes.push(tmpRec);
+  const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
+  if(!S.menu[wk])S.menu[wk]={};
+  if(!S.menu[wk][curMenuDay])S.menu[wk][curMenuDay]={};
+  const ids=getSlotIds(S.menu[wk][curMenuDay],_mreSlot).map(id=>id===_mreRecId?tmpRec.id:id);
+  S.menu[wk][curMenuDay][_mreSlot]=ids;
+  save();closeM('modal-menu-rec-edit');renderMenu();
+}
+
 function renderPickList(q){
   const list=document.getElementById('pick-list');
-  let recs=S.recipes.filter(r=>!r.isFree&&!r.isAlimSingle);
+  let recs=S.recipes.filter(r=>!r.isFree&&!r.isAlimSingle&&!r.isMenuOnly);
   if(q)recs=recs.filter(r=>r.name.toLowerCase().includes(q.toLowerCase()));
   const cats=Array.isArray(recs[0]?.cats)?null:null; // used below per item
   list.innerHTML=recs.map(r=>{
@@ -2242,12 +2436,18 @@ function renderPickAlimList(q){
   const dd=document.getElementById('pick-alim-dropdown');
   if(!q||q.length<1){dd.classList.add('hidden');return;}
   const matches=S.aliments.filter(a=>a.name.toLowerCase().includes(q.toLowerCase())).slice(0,7);
-  if(!matches.length){dd.classList.add('hidden');return;}
+  const safeQ=q.replace(/'/g,"\\'");
+  const addBtn=`<div class="ingr-option" style="color:var(--terra);font-weight:600;border-top:${matches.length?'1px solid var(--border)':'none'}" onmousedown="openMissingAlimFromMenu('${safeQ}')">➕ Ajouter "${q}"</div>`;
+  if(!matches.length){
+    dd.innerHTML=addBtn;
+    dd.classList.remove('hidden');
+    return;
+  }
   dd.innerHTML=matches.map(a=>`
     <div class="ingr-option" onclick="selectPickAlim('${a.id}','${a.name.replace(/'/g,"\\'")}',${a.kcal100},${a.prot100},${a.gluc100||0},${a.lip100})">
       <span class="ingr-option-name">${a.name}</span>
       <span class="ingr-option-macros">${a.kcal100}kcal · ${a.prot100}g P</span>
-    </div>`).join('');
+    </div>`).join('')+addBtn;
   dd.classList.remove('hidden');
 }
 
@@ -2287,16 +2487,15 @@ function savePickAlim(){
   const prot=Math.round(_pickAlim100.prot*f*10)/10;
   const gluc=Math.round((_pickAlim100.gluc||0)*f*10)/10;
   const lip=Math.round(_pickAlim100.lip*f*10)/10;
-  const id='alims_'+Date.now();
-  const obj={id,name:`${label} (${g}g)`,cats:['aliment-seul'],cat:'aliment-seul',url:'',isAlimSingle:true,freeMacros:{kcal,prot,gluc,lip},ingredients:[]};
-  S.recipes.push(obj);
+  // Objet inline — pas stocké dans S.recipes
+  const inlineObj={id:'alims_'+Date.now(),name:`${label} (${g}g)`,isAlimSingle:true,freeMacros:{kcal,prot,gluc,lip}};
   if(pickingSlot){
     const{dk,slot}=pickingSlot;
     const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
     if(!S.menu[wk])S.menu[wk]={};
     if(!S.menu[wk][dk])S.menu[wk][dk]={};
     const cur=getSlotIds(S.menu[wk][dk],slot);
-    S.menu[wk][dk][slot]=[...cur,id];
+    S.menu[wk][dk][slot]=[...cur,inlineObj];
     save();
   }
   closeM('modal-pick');renderMenu();
@@ -2426,26 +2625,30 @@ function renderWeightSection(){
   const ws=[...S.suivi.weights].reverse().slice(0,10);
   if(!ws.length){list.innerHTML='<div class="empty" style="padding:18px"><div class="text-m">Aucune pesée enregistrée</div></div>';chart.innerHTML='';return;}
   const all=S.suivi.weights.slice(-12);
+  const goalW=S.tdeeProfile&&S.tdeeProfile.goalWeight?parseFloat(S.tdeeProfile.goalWeight):null;
   if(all.length>=2){
-    const maxW=Math.max(...all.map(w=>w.val));const minW=Math.min(...all.map(w=>w.val),46);
-    const range=maxW-Math.min(minW,46),h=60,w=100;
-    const pts=all.map((item,i)=>{const x=(i/(all.length-1))*w;const y=h-((item.val-Math.min(minW,46))/(range||1))*(h-4)-2;return`${x},${y}`;}).join(' ');
-    const goal=h-((46-Math.min(minW,46))/(range||1))*(h-4)-2;
+    const maxW=Math.max(...all.map(w=>w.val));
+    const baseMin=goalW!=null?Math.min(...all.map(w=>w.val),goalW):Math.min(...all.map(w=>w.val));
+    const minW=baseMin;
+    const range=maxW-minW,h=60,w=100;
+    const pts=all.map((item,i)=>{const x=(i/(all.length-1))*w;const y=h-((item.val-minW)/(range||1))*(h-4)-2;return`${x},${y}`;}).join(' ');
+    const goalLine=goalW!=null?h-((goalW-minW)/(range||1))*(h-4)-2:null;
     chart.innerHTML=`<svg viewBox="0 0 100 ${h}" style="width:100%;height:55px;overflow:visible;margin-bottom:10px">
-      <line x1="0" y1="${goal}" x2="100" y2="${goal}" stroke="var(--terra)" stroke-width=".5" stroke-dasharray="2,2"/>
-      <text x="1" y="${goal-2}" font-size="5" fill="var(--terra)">46kg</text>
+      ${goalLine!=null?`<line x1="0" y1="${goalLine}" x2="100" y2="${goalLine}" stroke="var(--terra)" stroke-width=".5" stroke-dasharray="2,2"/>
+      <text x="1" y="${goalLine-2}" font-size="5" fill="var(--terra)">${goalW}kg</text>`:''}
       <polyline points="${pts}" fill="none" stroke="var(--proto)" stroke-width="1.5" stroke-linejoin="round"/>
-      ${all.map((item,i)=>{const x=(i/(all.length-1))*w;const y=h-((item.val-Math.min(minW,46))/(range||1))*(h-4)-2;return`<circle cx="${x}" cy="${y}" r="1.8" fill="var(--proto)"/>`;}).join('')}
+      ${all.map((item,i)=>{const x=(i/(all.length-1))*w;const y=h-((item.val-minW)/(range||1))*(h-4)-2;return`<circle cx="${x}" cy="${y}" r="1.8" fill="var(--proto)"/>`;}).join('')}
     </svg>`;
   }else chart.innerHTML='';
   list.innerHTML=ws.map((w,i)=>{
     const prev=ws[i+1];const delta=prev?(w.val-prev.val):null;
     const dStr=delta!==null?`${delta>0?'+':''}${delta.toFixed(1)}kg`:'';
     const dCol=delta>0?'var(--red)':delta<0?'var(--sage)':'var(--muted)';
+    const resteStr=goalW!=null?`reste ${(w.val-goalW).toFixed(1)}kg`:'';
     return`<div class="wentry">
       <div style="font-size:12px;color:var(--muted);width:75px">${new Date(w.date+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</div>
       <div style="font-size:15px;font-weight:700">${w.val} kg</div>
-      <div style="font-size:11px;color:var(--muted);flex:1">reste ${(w.val-46).toFixed(1)}kg</div>
+      <div style="font-size:11px;color:var(--muted);flex:1">${resteStr}</div>
       ${delta!==null?`<div style="font-size:12px;font-weight:600;color:${dCol}">${dStr}</div>`:''}
     </div>`;
   }).join('');
@@ -3108,6 +3311,7 @@ async function initApp(){
 
   renderAliments();
   loadApiKeyUI();
+  migrateFreeMeals(); // purge anciens repas libres stockés dans recipes
   if(loaded) splashDone();
 
   // Refresh discret toutes les 2 minutes (pour récupérer les ajouts de Murielle)
