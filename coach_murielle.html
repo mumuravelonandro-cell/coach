@@ -577,7 +577,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 
 <!-- Pick Recipe Modal -->
 <div class="modal-overlay hidden" id="modal-pick">
-  <div class="modal" onclick="event.stopPropagation()">
+  <div class="modal" onclick="event.stopPropagation()" style="display:flex;flex-direction:column;height:92vh;padding-bottom:16px">
     <div class="modal-title"><span id="pick-title">Choisir une recette</span><button class="btn-icon" onclick="closeM('modal-pick')">✕</button></div>
     <!-- Onglets Recette / Aliment seul / actions rapides -->
     <div class="pill-tabs mb-12" style="margin-bottom:12px">
@@ -587,12 +587,20 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
       <button class="pill-tab" onclick="openFreeMealModal()" style="border-color:var(--gold);color:var(--gold)">✏️ Libre</button>
     </div>
     <!-- Panneau Recette -->
-    <div id="pick-panel-rec">
-      <div class="mb-12"><input type="text" id="pick-search" placeholder="Rechercher une recette…" oninput="renderPickList(this.value)"></div>
-      <div id="pick-list"></div>
+    <div id="pick-panel-rec" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="mb-8"><input type="text" id="pick-search" placeholder="Rechercher une recette…" oninput="renderPickList(this.value)"></div>
+      <div class="flex-b" style="gap:8px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.5px">Trier :</div>
+        <div class="flex gap-6" id="pick-sort-tabs">
+          <button class="pill-tab active" style="padding:3px 10px;font-size:11px" onclick="setPickSort('name',this)">Nom</button>
+          <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setPickSort('kcal',this)">Kcal ↓</button>
+          <button class="pill-tab" style="padding:3px 10px;font-size:11px" onclick="setPickSort('prot',this)">Prot ↓</button>
+        </div>
+      </div>
+      <div id="pick-list" style="flex:1;overflow-y:auto"></div>
     </div>
     <!-- Panneau Aliment seul -->
-    <div id="pick-panel-alim" style="display:none">
+    <div id="pick-panel-alim" style="display:none;flex:1;overflow-y:auto">
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Choisis un aliment de ta bibliothèque et indique la quantité.</div>
       <div class="mb-12" style="position:relative">
         <label>Aliment</label>
@@ -2271,10 +2279,21 @@ function openPickModal(slot){
   openM('modal-pick');
 }
 
+let _pickSort='name';
+function setPickSort(s,btn){
+  _pickSort=s;
+  document.querySelectorAll('#pick-sort-tabs .pill-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPickList(document.getElementById('pick-search').value);
+}
+
 function renderPickList(q){
   const list=document.getElementById('pick-list');
   let recs=S.recipes.filter(r=>!r.isFree&&!r.isAlimSingle&&!r.isMenuOnly);
   if(q)recs=recs.filter(r=>r.name.toLowerCase().includes(q.toLowerCase()));
+  if(_pickSort==='kcal') recs.sort((a,b)=>getRecipeMacros(b).kcal-getRecipeMacros(a).kcal);
+  else if(_pickSort==='prot') recs.sort((a,b)=>getRecipeMacros(b).prot-getRecipeMacros(a).prot);
+  else recs.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   const cats=Array.isArray(recs[0]?.cats)?null:null; // used below per item
   list.innerHTML=recs.map(r=>{
     const m=getRecipeMacros(r);
@@ -2311,8 +2330,8 @@ let _pickAlimId=null;
 function switchPickTab(tab){
   document.getElementById('pick-tab-rec').classList.toggle('active',tab==='rec');
   document.getElementById('pick-tab-alim').classList.toggle('active',tab==='alim');
-  document.getElementById('pick-panel-rec').style.display=tab==='rec'?'':'none';
-  document.getElementById('pick-panel-alim').style.display=tab==='alim'?'':'none';
+  document.getElementById('pick-panel-rec').style.display=tab==='rec'?'flex':'none';
+  document.getElementById('pick-panel-alim').style.display=tab==='alim'?'block':'none';
   if(tab==='alim'){
     document.getElementById('pick-alim-search').value='';
     document.getElementById('pick-alim-dropdown').classList.add('hidden');
@@ -2507,16 +2526,20 @@ function saveMreAsNew(){
     const ids=getSlotIds(S.menu[wk][curMenuDay],_mreSlot).map(id=>id===_mreRecId?newRec.id:id);
     S.menu[wk][curMenuDay][_mreSlot]=ids;
   }
-  save();closeM('modal-menu-recipe-edit');renderMenu();renderRecipes();
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(S));}catch(e){}
+  forceSyncUp();
+  closeM('modal-menu-recipe-edit');renderMenu();renderRecipes();
 }
 
 function saveMreOverwrite(){
   const d=getMreData();if(!d)return;
   if(!confirm('Écraser la recette "'+d.name+'" dans la bibliothèque ? Cette modification s\'appliquera partout où elle est utilisée.'))return;
   const idx=S.recipes.findIndex(x=>x.id===_mreRecId);
-  if(idx<0)return;
+  if(idx<0)return alert('❌ Recette introuvable dans la bibliothèque.');
   S.recipes[idx]={...S.recipes[idx],name:d.name,ingredients:d.ingrs};
-  save();closeM('modal-menu-recipe-edit');renderMenu();renderRecipes();
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(S));}catch(e){}
+  forceSyncUp();
+  closeM('modal-menu-recipe-edit');renderMenu();renderRecipes();
 }
 
 // Enregistre une version temporaire juste pour ce créneau du menu, sans toucher à la bibliothèque
@@ -2537,7 +2560,9 @@ function saveMreMenuOnly(){
   if(!S.menu[wk][curMenuDay])S.menu[wk][curMenuDay]={};
   const ids=getSlotIds(S.menu[wk][curMenuDay],_mreSlot).map(id=>id===_mreRecId?tmpRec.id:id);
   S.menu[wk][curMenuDay][_mreSlot]=ids;
-  save();closeM('modal-menu-recipe-edit');renderMenu();
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(S));}catch(e){}
+  forceSyncUp();
+  closeM('modal-menu-recipe-edit');renderMenu();
 }
 
 // Copy day
