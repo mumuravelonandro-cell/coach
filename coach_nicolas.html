@@ -3404,7 +3404,7 @@ async function initApp(){
     }
   }
 
-  // ── Étape 3 : Refresh discret toutes les 3 minutes (shared lib seulement) ──
+  // ── Étape 3 : Refresh discret toutes les 60s (shared lib seulement) ──
   setInterval(async ()=>{
     if(_pendingSave) return;
     try {
@@ -3417,8 +3417,9 @@ async function initApp(){
       if(shared.recipes)  S.recipes  = shared.recipes;
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
       renderAliments();
+      renderRecipes();
     } catch(e){}
-  }, 180000);
+  }, 60000);
 }
 
 // Lancement
