@@ -137,16 +137,16 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <nav class="nav">
   <div class="nav-brand">NutriFlow <span>· Nicolas</span></div>
   <button id="sync-btn" onclick="forceSyncUp()" title="Synchroniser" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:11px;color:#9B8B7E;font-family:inherit;transition:all 0.2s;flex-shrink:0;margin:10px 8px 10px 0">☁️ Sync</button>
-  <button class="nav-tab active" onclick="showTab('aliments',this)">🥦 Aliments</button>
+  <button class="nav-tab" onclick="showTab('aliments',this)">🥦 Aliments</button>
   <button class="nav-tab" onclick="showTab('recettes',this)">🍽️ Recettes</button>
-  <button class="nav-tab" onclick="showTab('menu',this)">📅 Menu</button>
+  <button class="nav-tab active" onclick="showTab('menu',this)">📅 Menu</button>
   <button class="nav-tab" onclick="showTab('suivi',this)">📊 Suivi</button>
   <button class="nav-tab" onclick="showTab('sport',this)">🏋️ Sport</button>
   <button class="nav-tab" onclick="showTab('tdee',this)">🎯 Objectifs</button>
 </nav>
 
 <!-- ===== ALIMENTS ===== -->
-<div id="page-aliments" class="page active">
+<div id="page-aliments" class="page">
   <div class="flex-b mb-20">
     <div><div class="sec-title">Bibliothèque d'aliments</div><div class="sec-sub">Base Cronometer · modifiable · import photo</div></div>
     <div class="flex gap-8">
@@ -195,7 +195,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- ===== MENU ===== -->
-<div id="page-menu" class="page">
+<div id="page-menu" class="page active">
   <div class="flex-b mb-14">
     <div><div class="sec-title">Menu de la semaine</div><div class="sec-sub" id="menu-week-lbl"></div></div>
     <div class="flex gap-8">
@@ -571,6 +571,22 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div class="flex gap-8">
       <button class="btn btn-dark w100" onclick="saveRecipe()">Enregistrer</button>
       <button class="btn btn-outline" id="btn-del-rec" onclick="deleteRecipe()" style="display:none;color:var(--red)">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save Recipe Choice Modal -->
+<div class="modal-overlay hidden" id="modal-rec-save-choice" style="z-index:601">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:420px">
+    <div class="modal-title" style="margin-bottom:12px">
+      <span>💾 Enregistrer la recette</span>
+      <button class="btn-icon" onclick="closeM('modal-rec-save-choice')">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">Tu as modifié <strong id="rec-save-choice-name" style="color:var(--dark)"></strong>. Que veux-tu faire ?</p>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <button class="btn btn-dark w100" onclick="recSaveChoice('overwrite')">🔄 Écraser la recette existante</button>
+      <button class="btn btn-terra w100" onclick="recSaveChoice('new')" style="background:var(--sage)">✨ Enregistrer comme nouvelle recette</button>
+      <button class="btn btn-outline w100" onclick="closeM('modal-rec-save-choice')">Annuler</button>
     </div>
   </div>
 </div>
@@ -2077,15 +2093,44 @@ function saveRecipe(){
   if(!ings.length)return alert('Ajoute au moins un ingrédient');
   const cats=getRecCats();
   if(!cats.length)return alert('Sélectionne au moins une catégorie');
-  // Vérification doublon de nom (hors édition de la même recette)
+  // Si on est en mode édition d'une recette existante, proposer le choix
+  if(editRecId){
+    const origRec=S.recipes.find(r=>r.id===editRecId);
+    document.getElementById('rec-save-choice-name').textContent=origRec?origRec.name:name;
+    openM('modal-rec-save-choice');
+    return;
+  }
+  // Nouvelle recette : vérif doublon puis sauvegarde directe
+  _doSaveRecipe(false);
+}
+
+function recSaveChoice(choice){
+  closeM('modal-rec-save-choice');
+  if(choice==='overwrite') _doSaveRecipe(true);
+  else if(choice==='new') _doSaveRecipe(false);
+  // 'annuler' : ne rien faire (modal déjà fermé)
+}
+
+function _doSaveRecipe(overwrite){
+  const name=document.getElementById('rec-name').value.trim();
+  const ings=getIngredients();
+  const cats=getRecCats();
   const nameLower=name.toLowerCase();
-  const duplicate=S.recipes.find(r=>r.name.toLowerCase()===nameLower&&r.id!==editRecId);
+  // En mode "nouvelle recette" depuis une édition, on crée un nouvel id
+  const targetId=overwrite?editRecId:null;
+  // Vérification doublon de nom (hors recette écrasée)
+  const duplicate=S.recipes.find(r=>r.name.toLowerCase()===nameLower&&r.id!==targetId);
   if(duplicate)return alert(`❌ Une recette nommée "${duplicate.name}" existe déjà dans la bibliothèque.\nChoisis un autre nom pour enregistrer ta recette.`);
-  const obj={id:editRecId||('r'+Date.now()),name,cats,cat:cats[0],url:document.getElementById('rec-url').value.trim(),ingredients:ings};
-  if(editRecId){const idx=S.recipes.findIndex(r=>r.id===editRecId);if(idx>=0)S.recipes[idx]=obj;}
-  else S.recipes.push(obj);
+  const obj={id:targetId||('r'+Date.now()),name,cats,cat:cats[0],url:document.getElementById('rec-url').value.trim(),ingredients:ings};
+  if(overwrite&&editRecId){
+    const idx=S.recipes.findIndex(r=>r.id===editRecId);
+    if(idx>=0)S.recipes[idx]=obj;
+  } else {
+    S.recipes.push(obj);
+  }
+  const wasNew=!overwrite&&editRecId; // nouvelle recette créée depuis une édition
   save();closeM('modal-recipe');
-  if(_recipeFromMenu&&pickingSlot&&!editRecId){
+  if(_recipeFromMenu&&pickingSlot&&wasNew){
     const {dk,slot}=pickingSlot;
     const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
     if(!S.menu[wk])S.menu[wk]={};
@@ -2136,16 +2181,18 @@ function renderMenu(){
 
   const weekData=S.menu[wk]||{};
   const grid=document.getElementById('menu-days-grid');
-  let wkTotalKcal=0, wkDaysLogged=0;
+  let wkTotalKcal=0, wkTotalProt=0, wkTotalGluc=0, wkTotalLip=0, wkDaysLogged=0;
   grid.innerHTML=DAYS_SHORT.map((d,i)=>{
     const dk=isoDate(addDays(mon,i));
     const dm=weekData[dk]||{};
-    const kcal=Object.keys(dm).reduce((acc,slot)=>{
-      return acc+getSlotIds(dm,slot).reduce((a2,entry)=>{
-        const r=resolveEntry(entry);const m=getRecipeMacros(r);return a2+(m?m.kcal:0);
-      },0);
-    },0);
-    if(kcal>0){wkTotalKcal+=kcal;wkDaysLogged++;}
+    let kcal=0,prot=0,gluc=0,lip=0;
+    Object.keys(dm).forEach(slot=>{
+      getSlotIds(dm,slot).forEach(entry=>{
+        const r=resolveEntry(entry);const m=getRecipeMacros(r);
+        if(m){kcal+=m.kcal;prot+=m.prot;gluc+=m.gluc;lip+=m.lip;}
+      });
+    });
+    if(kcal>0){wkTotalKcal+=kcal;wkTotalProt+=prot;wkTotalGluc+=gluc;wkTotalLip+=lip;wkDaysLogged++;}
     const isTd=dk===today, isSel=dk===curMenuDay;
     return`<div class="day-pill ${isSel?'active':''}" onclick="selMenuDay('${dk}')">
       <div class="dn" style="${isTd?'color:var(--terra)':''}">${d}</div>
@@ -2157,9 +2204,21 @@ function renderMenu(){
   const sumEl=document.getElementById('week-summary');
   if(wkDaysLogged>0){
     const avgKcal=Math.round(wkTotalKcal/wkDaysLogged);
+    const avgP=Math.round(wkTotalProt/wkDaysLogged);
+    const avgG=Math.round(wkTotalGluc/wkDaysLogged);
+    const avgL=Math.round(wkTotalLip/wkDaysLogged);
     const goalK=GOAL_KCAL();
     const avgColor=goalK>0?(avgKcal>goalK?'var(--red)':avgKcal/goalK<0.8?'#F5A623':'var(--sage)'):'var(--dark)';
-    sumEl.innerHTML=`<span style="font-size:11px;font-weight:600;color:var(--muted)">SEMAINE · ${wkDaysLogged} jour${wkDaysLogged>1?'s':''} renseigné${wkDaysLogged>1?'s':''}</span><span style="font-size:13px;font-weight:700;color:var(--dark)">Total : ${wkTotalKcal} kcal</span><span style="font-size:12px;font-weight:600;color:${avgColor}">Moy/j : ${avgKcal} kcal${goalK>0?' / obj. '+goalK:''}</span>`;
+    sumEl.innerHTML=`
+      <span style="font-size:11px;font-weight:600;color:var(--muted)">SEMAINE · ${wkDaysLogged} jour${wkDaysLogged>1?'s':''} renseigné${wkDaysLogged>1?'s':''}</span>
+      <span style="font-size:13px;font-weight:700;color:${avgColor}">⌀ ${avgKcal} kcal/j${goalK>0?' · obj. '+goalK:''}</span>
+      <span style="font-size:12px;font-weight:600;color:var(--muted)">
+        <span style="color:var(--proto)">P</span> ${avgP}g${GOAL_P()>0?`<span style="font-weight:400"> / ${GOAL_P()}g</span>`:''}
+        &nbsp;
+        <span style="color:var(--gold)">G</span> ${avgG}g${GOAL_G()>0?`<span style="font-weight:400"> / ${GOAL_G()}g</span>`:''}
+        &nbsp;
+        <span style="color:var(--terra)">L</span> ${avgL}g${GOAL_L()>0?`<span style="font-weight:400"> / ${GOAL_L()}g</span>`:''}
+      </span>`;
     sumEl.style.display='flex';
   } else {
     sumEl.style.display='none';
@@ -3213,7 +3272,7 @@ function calcTDEE(){
   const actFactor = TDEE_ACTIVITY.find(a=>a.key===tdeeActivity)?.factor||1.55;
   const maintenance = Math.round(bmr * actFactor);
 
-  const goalPct = TDEE_GOALS.find(g=>g.key===tdeeGoal)?.pct||(-0.20);
+  const goalPct = TDEE_GOALS.find(g=>g.key===tdeeGoal)?.pct??(-0.20);
   const target = Math.round(maintenance * (1 + goalPct));
 
   // Estimate time to goal
@@ -3369,6 +3428,7 @@ async function initApp(){
 
   if(hasLocal){
     renderAliments();
+    renderMenu();
     loadApiKeyUI();
     migrateFreeMeals();
     splashProgress(60, 'Données locales chargées…');
@@ -3410,6 +3470,7 @@ async function initApp(){
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
     setSyncUI('ok');
     renderAliments();
+    renderMenu();
 
     if(!hasLocal){
       loadApiKeyUI();
@@ -3424,6 +3485,7 @@ async function initApp(){
       S = emptyStore();
       splashError('Impossible de charger les données. Vérifie ta connexion.');
       renderAliments();
+      renderMenu();
       loadApiKeyUI();
       return;
     }
