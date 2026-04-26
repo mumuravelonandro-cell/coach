@@ -2886,8 +2886,8 @@ function openCopySlotModal(slot){
       sel.appendChild(opt);
     });
   }
-  // Default: same day
-  sel.value=curMenuDay;
+  // Default: aujourd'hui si disponible dans la liste, sinon le jour affiché
+  sel.value=(sel.querySelector(`option[value="${today}"]`)?today:curMenuDay);
 
   // Target slot pills
   renderCopySlotPills();
