@@ -3302,6 +3302,58 @@ function renderSport(){
     html+=`</div>`;
   }
 
+  // ── Graphe de pas (vue semaine uniquement) ─────────────────────
+  if(sportSubView==='week'&&weekStepsDaysWithData.length>0){
+    const STEP_GOAL=10000;
+    const maxSteps=Math.max(STEP_GOAL,...weekStepsDays);
+    const svgW=320,svgH=110,barW=30,gap=16;
+    const totalW=7*(barW+gap)-gap;
+    const offsetX=(svgW-totalW)/2;
+    const chartH=svgH-26; // zone dessin au-dessus des labels
+    const yGoal=Math.round((1-STEP_GOAL/maxSteps)*chartH);
+    // ligne moyenne
+    const avgY=weekStepsAvg>0?Math.round((1-weekStepsAvg/maxSteps)*chartH):null;
+    const DAYS_S=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+    let bars='';
+    weekStepsDays.forEach((steps,i)=>{
+      const x=offsetX+i*(barW+gap);
+      const pct=steps/maxSteps;
+      const barH=Math.max(steps>0?3:0,Math.round(pct*chartH));
+      const y=chartH-barH;
+      const col=steps>=STEP_GOAL?'#7A9E7E':steps>=6000?'#C9A84C':steps>0?'#C4724A':'#EEF6FF';
+      const isDayToday=isCurrentWeek&&i===today;
+      bars+=`<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="5" fill="${col}" opacity="${isDayToday?1:.82}"/>`;
+      if(steps>0){
+        const lbl=steps>=1000?(Math.round(steps/100)/10).toString().replace('.',',')+'\u202fk':steps+'';
+        bars+=`<text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${col}" font-family="inherit">${lbl}</text>`;
+      }
+      bars+=`<text x="${x+barW/2}" y="${svgH-8}" text-anchor="middle" font-size="9.5" fill="${isDayToday?'#2A7FC1':'#9B8B7E'}" font-weight="${isDayToday?700:400}" font-family="inherit">${DAYS_S[i]}</text>`;
+      if(isDayToday) bars+=`<rect x="${x+4}" y="${svgH-20}" width="${barW-8}" height="2.5" rx="1.5" fill="#2A7FC1" opacity=".6"/>`;
+    });
+    // repère 10 000 pas
+    bars+=`<line x1="${offsetX-4}" y1="${yGoal}" x2="${offsetX+totalW+4}" y2="${yGoal}" stroke="#7A9E7E" stroke-width="1.2" stroke-dasharray="4 3" opacity=".75"/>
+      <text x="${offsetX+totalW+8}" y="${yGoal+3.5}" font-size="8" fill="#7A9E7E" opacity=".9" font-family="inherit">10k</text>`;
+    // ligne moyenne (seulement si ≠ 10k)
+    if(avgY!==null&&Math.abs(avgY-yGoal)>8){
+      bars+=`<line x1="${offsetX-4}" y1="${avgY}" x2="${offsetX+totalW+4}" y2="${avgY}" stroke="#C9A84C" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>
+        <text x="${offsetX+totalW+8}" y="${avgY+3.5}" font-size="8" fill="#C9A84C" opacity=".9" font-family="inherit">∅</text>`;
+    }
+    html+=`<div style="margin-top:14px;background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:14px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">👟</span><span style="font-size:13px;font-weight:600">Pas · semaine</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:#9B8B7E">∅ <strong style="color:${weekStepsAvg>=STEP_GOAL?'#7A9E7E':weekStepsAvg>=6000?'#C9A84C':'#C4724A'}">${weekStepsAvg.toLocaleString('fr-FR')}</strong> pas/j</span>
+          <span style="font-size:11px;background:#F5F0E8;border-radius:20px;padding:2px 8px;color:#9B8B7E">${weekStepsDaysWithData.filter(v=>v>=STEP_GOAL).length.toString().padStart(1,'0')} / 7 jours à 10k</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="display:block;overflow:visible">${bars}</svg>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px;font-size:10px;color:#9B8B7E">
+        <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#7A9E7E;border-radius:2px"></span>Objectif 10 000</span>
+        ${avgY!==null&&Math.abs(avgY-yGoal)>8?`<span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#C9A84C;border-radius:2px;opacity:.8"></span>Moyenne</span>`:''}
+      </div>
+    </div>`;
+  }
+
   if(sportSubView==='template'){
     html+=`<div class="alert-y"><span>💡</span><span>Ton modèle de base — appliqué à la demande chaque nouvelle semaine.</span></div>
     <div style="display:flex;flex-direction:column;gap:10px">`;

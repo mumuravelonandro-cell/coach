@@ -3267,42 +3267,51 @@ function renderSport(){
     });
     html+=`</div>`;
 
-    // ── Histogramme des pas de la semaine ──────────────────────
+    // ── Histogramme des pas de la semaine (SVG) ────────────────
     const STEP_GOAL=10000;
     const hasAnySteps=weekStepsDays.some(v=>v>0);
     if(hasAnySteps){
-      const barMaxVal=Math.max(STEP_GOAL*1.15,...weekStepsDays);
-      const BAR_H=80;
-      const bars=weekStepsDays.map((steps,i)=>{
-        const barH=Math.round((steps/barMaxVal)*BAR_H);
+      const maxSteps=Math.max(STEP_GOAL,...weekStepsDays);
+      const svgW=320,svgH=110,barW=30,gap=16;
+      const totalW=7*(barW+gap)-gap;
+      const offsetX=(svgW-totalW)/2;
+      const chartH=svgH-26;
+      const yGoal=Math.round((1-STEP_GOAL/maxSteps)*chartH);
+      const avgY=weekStepsAvg>0?Math.round((1-weekStepsAvg/maxSteps)*chartH):null;
+      let barsSvg='';
+      weekStepsDays.forEach((steps,i)=>{
+        const x=offsetX+i*(barW+gap);
+        const pct=steps/maxSteps;
+        const barH=Math.max(steps>0?3:0,Math.round(pct*chartH));
+        const y=chartH-barH;
         const col=steps>=STEP_GOAL?'#7A9E7E':steps>=6000?'#C9A84C':steps>0?'#1E8A45':'#E8DDD0';
         const isToday_=isCurrentWeek&&i===today;
-        return`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
-          ${steps>0?`<div style="font-size:9px;font-weight:700;color:${col};text-align:center">${steps>=1000?(steps/1000).toFixed(1)+'k':steps}</div>`:'<div style="font-size:9px;color:#E8DDD0">—</div>'}
-          <div style="display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px">
-            <div style="width:22px;height:${barH}px;background:${col};border-radius:4px 4px 0 0;transition:height .4s ease;min-height:${steps>0?2:0}px"></div>
-          </div>
-          <div style="font-size:9px;font-weight:${isToday_?700:400};color:${isToday_?'#1E8A45':'#9B8B7E'}">${DAYS_SHORT[i]}</div>
-        </div>`;
-      }).join('');
-      const goalLineH=Math.round((STEP_GOAL/barMaxVal)*BAR_H);
-      const avgLineH=weekStepsAvg>0?Math.round((weekStepsAvg/barMaxVal)*BAR_H):null;
-      html+=`<div style="background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:16px 18px;margin-top:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:6px">
-          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">🦶</span><span style="font-size:13px;font-weight:600">Pas de la semaine</span></div>
-          <div style="display:flex;gap:12px;align-items:center">
-            <div style="display:flex;align-items:center;gap:5px"><div style="width:16px;height:0;border-top:1.5px dashed #1E8A45"></div><span style="font-size:10px;color:#9B8B7E">10 000 pas</span></div>
-            ${weekStepsAvg>0?`<div style="display:flex;align-items:center;gap:5px"><div style="width:16px;height:0;border-top:1.5px dashed #4A7FA5"></div><span style="font-size:10px;color:#9B8B7E">Moy. ${weekStepsAvg.toLocaleString('fr-FR')}</span></div>`:''}
+        barsSvg+=`<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="5" fill="${col}" opacity="${isToday_?1:.82}"/>`;
+        if(steps>0){
+          const lbl=steps>=1000?(Math.round(steps/100)/10).toString().replace('.',',')+'\u202fk':steps+'';
+          barsSvg+=`<text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${col}" font-family="inherit">${lbl}</text>`;
+        }
+        barsSvg+=`<text x="${x+barW/2}" y="${svgH-8}" text-anchor="middle" font-size="9.5" fill="${isToday_?'#1E8A45':'#9B8B7E'}" font-weight="${isToday_?700:400}" font-family="inherit">${DAYS_SHORT[i]}</text>`;
+        if(isToday_) barsSvg+=`<rect x="${x+4}" y="${svgH-20}" width="${barW-8}" height="2.5" rx="1.5" fill="#1E8A45" opacity=".6"/>`;
+      });
+      barsSvg+=`<line x1="${offsetX-4}" y1="${yGoal}" x2="${offsetX+totalW+4}" y2="${yGoal}" stroke="#1E8A45" stroke-width="1.2" stroke-dasharray="4 3" opacity=".75"/>
+        <text x="${offsetX+totalW+8}" y="${yGoal+3.5}" font-size="8" fill="#1E8A45" opacity=".9" font-family="inherit">10k</text>`;
+      if(avgY!==null&&Math.abs(avgY-yGoal)>8){
+        barsSvg+=`<line x1="${offsetX-4}" y1="${avgY}" x2="${offsetX+totalW+4}" y2="${avgY}" stroke="#4A7FA5" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>
+          <text x="${offsetX+totalW+8}" y="${avgY+3.5}" font-size="8" fill="#4A7FA5" opacity=".9" font-family="inherit">∅</text>`;
+      }
+      html+=`<div style="background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:14px 18px;margin-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">👟</span><span style="font-size:13px;font-weight:600">Pas · semaine</span></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;color:#9B8B7E">∅ <strong style="color:${weekStepsAvg>=STEP_GOAL?'#7A9E7E':weekStepsAvg>=6000?'#C9A84C':'#1E8A45'}">${weekStepsAvg.toLocaleString('fr-FR')}</strong> pas/j</span>
+            <span style="font-size:11px;background:#F5F0E8;border-radius:20px;padding:2px 8px;color:#9B8B7E">${weekStepsDays.filter(v=>v>=STEP_GOAL).length} / 7 jours à 10k</span>
           </div>
         </div>
-        <div style="position:relative">
-          <div style="display:flex;gap:4px;align-items:flex-end">
-            ${bars}
-          </div>
-          <div style="position:absolute;left:0;right:0;bottom:${goalLineH+18}px;border-top:1.5px dashed #1E8A45;pointer-events:none">
-            <span style="position:absolute;right:0;top:-10px;font-size:9px;font-weight:600;color:#1E8A45;background:#fff;padding:0 2px">10k</span>
-          </div>
-          ${avgLineH&&weekStepsAvg!==STEP_GOAL?`<div style="position:absolute;left:0;right:0;bottom:${avgLineH+18}px;border-top:1.5px dashed #4A7FA5;pointer-events:none"><span style="position:absolute;left:0;top:-10px;font-size:9px;font-weight:600;color:#4A7FA5;background:#fff;padding:0 2px">∅</span></div>`:''}
+        <svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="display:block;overflow:visible">${barsSvg}</svg>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px;font-size:10px;color:#9B8B7E">
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#1E8A45;border-radius:2px"></span>Objectif 10 000</span>
+          ${avgY!==null&&Math.abs(avgY-yGoal)>8?`<span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#4A7FA5;border-radius:2px;opacity:.8"></span>Moyenne</span>`:''}
         </div>
       </div>`;
     }
