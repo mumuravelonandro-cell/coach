@@ -3096,7 +3096,10 @@ function renderSport(){
   const allSessions=Object.values(weekData).flat();
   const statDone=allSessions.filter(s=>s.status==='done').length;
   const statMissed=allSessions.filter(s=>s.status==='missed').length;
-  const weekStepsTotal=Array.from({length:7},(_,i)=>{const d=new Date(sportMonday);d.setDate(d.getDate()+i);return(S.suivi&&S.suivi.dailySteps&&S.suivi.dailySteps[d.toISOString().slice(0,10)])||0;}).reduce((a,b)=>a+b,0);
+  const weekStepsDays=Array.from({length:7},(_,i)=>(S.suivi&&S.suivi.dailySteps&&S.suivi.dailySteps[isoDate(addDays(sportMonday,i))])||0);
+  const weekStepsTotal=weekStepsDays.reduce((a,b)=>a+b,0);
+  const weekStepsDaysWithData=weekStepsDays.filter(v=>v>0);
+  const weekStepsAvg=weekStepsDaysWithData.length>0?Math.round(weekStepsTotal/weekStepsDaysWithData.length):0;
   const sessionsReached=statDone>=weekGoals.sessions;
   const stepsReached=weekStepsTotal>=weekGoals.steps;
   const sessionsPct=Math.min(statDone/(weekGoals.sessions||1),1);
@@ -3155,6 +3158,7 @@ function renderSport(){
             <div style="display:flex;align-items:center;gap:5px"><span>🚶‍♀️</span><span style="font-size:12px;font-weight:500">Pas</span></div>
             <div style="display:flex;align-items:center;gap:5px">
               <span style="font-size:13px;font-weight:700;color:${stepsReached?'#7A9E7E':'#1A1410'}">${weekStepsTotal.toLocaleString('fr-FR')}</span>
+              ${weekStepsAvg>0?`<span style="font-size:10px;color:#9B8B7E;background:#F5F0E8;border-radius:20px;padding:1px 7px">∅ ${weekStepsAvg.toLocaleString('fr-FR')}/j</span>`:''}
               <span style="font-size:11px;color:#9B8B7E">/</span>
               ${editGoals?`<input type="number" min="1000" step="5000" value="${weekGoals.steps}" onchange="updateSportGoal('steps',this.value)" style="width:68px;border:1.5px solid #E8DDD0;border-radius:6px;padding:2px 6px;font-family:inherit;font-size:12px;text-align:center;outline:none">`:`<span style="font-size:11px;color:#9B8B7E">${weekGoals.steps.toLocaleString('fr-FR')}</span>`}
               ${stepsReached?'<span>✅</span>':''}
@@ -3173,11 +3177,12 @@ function renderSport(){
     DAYS_FULL.forEach((dayName,i)=>{
       const sessions=weekData[i]||[];
       const isToday_=isCurrentWeek&&i===today;
+      const dayDate=addDays(sportMonday,i);
+      const dateNum=dayDate.getDate();
       const isPast=isCurrentWeek&&i<today;
-      const dateNum=new Date(sportMonday.getTime()+i*86400000).getDate();
       const hasDone=sessions.some(s=>s.status==='done');
       const allDone_=sessions.length>0&&sessions.filter(s=>s.type!=='rest').every(s=>s.status==='done');
-      const dayIso=isoDate(new Date(sportMonday.getTime()+i*86400000));
+      const dayIso=isoDate(dayDate);
       const daySteps=(S.suivi&&S.suivi.dailySteps&&S.suivi.dailySteps[dayIso])||0;
       const GOAL=10000;const stepsPct2=Math.min(daySteps/GOAL,1);
       const stepsCol=daySteps>=GOAL?'#7A9E7E':daySteps>=6000?'#C9A84C':daySteps>0?'#C4724A':'#E8DDD0';
