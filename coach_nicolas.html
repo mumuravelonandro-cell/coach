@@ -1084,6 +1084,7 @@ function setSyncUI(st){
   if(!btn)return;
   btn.textContent = st==='syncing'?'⏳':st==='ok'?'✓ Sync':st==='error'?'✗ Erreur':'☁️ Sync';
   btn.style.color = st==='ok'?'#7A9E7E':st==='error'?'#E05252':'#9B8B7E';
+  if(st==='ok') setTimeout(()=>{ btn.textContent='☁️ Sync'; btn.style.color='#9B8B7E'; },2000);
 }
 
 // Toast léger pour feedback immédiat
@@ -3265,6 +3266,46 @@ function renderSport(){
       </div>`;
     });
     html+=`</div>`;
+
+    // ── Histogramme des pas de la semaine ──────────────────────
+    const STEP_GOAL=10000;
+    const hasAnySteps=weekStepsDays.some(v=>v>0);
+    if(hasAnySteps){
+      const barMaxVal=Math.max(STEP_GOAL*1.15,...weekStepsDays);
+      const BAR_H=80;
+      const bars=weekStepsDays.map((steps,i)=>{
+        const barH=Math.round((steps/barMaxVal)*BAR_H);
+        const col=steps>=STEP_GOAL?'#7A9E7E':steps>=6000?'#C9A84C':steps>0?'#1E8A45':'#E8DDD0';
+        const isToday_=isCurrentWeek&&i===today;
+        return`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
+          ${steps>0?`<div style="font-size:9px;font-weight:700;color:${col};text-align:center">${steps>=1000?(steps/1000).toFixed(1)+'k':steps}</div>`:'<div style="font-size:9px;color:#E8DDD0">—</div>'}
+          <div style="display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px">
+            <div style="width:22px;height:${barH}px;background:${col};border-radius:4px 4px 0 0;transition:height .4s ease;min-height:${steps>0?2:0}px"></div>
+          </div>
+          <div style="font-size:9px;font-weight:${isToday_?700:400};color:${isToday_?'#1E8A45':'#9B8B7E'}">${DAYS_SHORT[i]}</div>
+        </div>`;
+      }).join('');
+      const goalLineH=Math.round((STEP_GOAL/barMaxVal)*BAR_H);
+      const avgLineH=weekStepsAvg>0?Math.round((weekStepsAvg/barMaxVal)*BAR_H):null;
+      html+=`<div style="background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:16px 18px;margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">🦶</span><span style="font-size:13px;font-weight:600">Pas de la semaine</span></div>
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="display:flex;align-items:center;gap:5px"><div style="width:16px;height:0;border-top:1.5px dashed #1E8A45"></div><span style="font-size:10px;color:#9B8B7E">10 000 pas</span></div>
+            ${weekStepsAvg>0?`<div style="display:flex;align-items:center;gap:5px"><div style="width:16px;height:0;border-top:1.5px dashed #4A7FA5"></div><span style="font-size:10px;color:#9B8B7E">Moy. ${weekStepsAvg.toLocaleString('fr-FR')}</span></div>`:''}
+          </div>
+        </div>
+        <div style="position:relative">
+          <div style="display:flex;gap:4px;align-items:flex-end">
+            ${bars}
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:${goalLineH+18}px;border-top:1.5px dashed #1E8A45;pointer-events:none">
+            <span style="position:absolute;right:0;top:-10px;font-size:9px;font-weight:600;color:#1E8A45;background:#fff;padding:0 2px">10k</span>
+          </div>
+          ${avgLineH&&weekStepsAvg!==STEP_GOAL?`<div style="position:absolute;left:0;right:0;bottom:${avgLineH+18}px;border-top:1.5px dashed #4A7FA5;pointer-events:none"><span style="position:absolute;left:0;top:-10px;font-size:9px;font-weight:600;color:#4A7FA5;background:#fff;padding:0 2px">∅</span></div>`:''}
+        </div>
+      </div>`;
+    }
   }
 
   if(sportSubView==='template'){
@@ -3792,7 +3833,7 @@ async function initApp(){
 // ============================================================
 // BILAN HEBDOMADAIRE
 // ============================================================
-let bilanMonday = getMonday(addDays(new Date(), -7)); // semaine précédente par défaut
+let bilanMonday = getMonday(); // semaine en cours par défaut
 
 function bilanPrevWeek(){bilanMonday=addDays(bilanMonday,-7);renderBilan();}
 function bilanNextWeek(){

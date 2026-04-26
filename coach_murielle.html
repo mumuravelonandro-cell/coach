@@ -4114,6 +4114,91 @@ function renderBilan(){
   }
   html+=`</div>`;
 
+  // ── Routines morning & night ──────────────────────────────────
+  {
+    // Collecte par routine pour la semaine
+    const mrDays=[], nrDays=[];
+    const mrCounts={}, nrCounts={};
+    MORNING_ROUTINE.forEach(r=>{mrCounts[r.id]={label:r.l,e:r.e,count:0};});
+    NIGHT_ROUTINE.forEach(r=>{nrCounts[r.id]={label:r.l,e:r.e,count:0};});
+    for(let i=0;i<7;i++){
+      const dk=isoDate(addDays(mon,i));
+      const c=S.suivi.dailyChecks[dk];
+      if(c&&c.morning&&Object.keys(c.morning).length){
+        mrDays.push({dk,morning:c.morning||{}});
+        MORNING_ROUTINE.forEach(r=>{if(c.morning[r.id])mrCounts[r.id].count++;});
+      }
+      if(c&&c.night&&Object.keys(c.night).length){
+        nrDays.push({dk,night:c.night||{}});
+        NIGHT_ROUTINE.forEach(r=>{if(c.night[r.id])nrCounts[r.id].count++;});
+      }
+    }
+    const hasMr=mrDays.length>0, hasNr=nrDays.length>0;
+    if(hasMr||hasNr){
+      html+=`<div class="card" style="margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px"><span>🌅</span> Routines</div>`;
+
+      // Score moyen par routine (% des rituels accomplis sur les jours renseignés)
+      const avgMrScore=hasMr?Math.round(mrDays.reduce((s,d)=>{
+        const done=MORNING_ROUTINE.filter(r=>d.morning[r.id]).length;
+        return s+(done/MORNING_ROUTINE.length*100);
+      },0)/mrDays.length):null;
+      const avgNrScore=hasNr?Math.round(nrDays.reduce((s,d)=>{
+        const done=NIGHT_ROUTINE.filter(r=>d.night[r.id]).length;
+        return s+(done/NIGHT_ROUTINE.length*100);
+      },0)/nrDays.length):null;
+
+      html+=`<div class="g2" style="gap:9px;margin-bottom:14px">`;
+      if(hasMr){
+        const col=avgMrScore>=75?'var(--sage)':avgMrScore>=50?'#F5A623':'var(--red)';
+        html+=bilanStatCard('🌅','Morning routine',avgMrScore+'%',`${mrDays.length} j renseignés · moy/j`,col);
+      }
+      if(hasNr){
+        const col=avgNrScore>=75?'var(--sage)':avgNrScore>=50?'#F5A623':'var(--red)';
+        html+=bilanStatCard('🌙','Night routine',avgNrScore+'%',`${nrDays.length} j renseignés · moy/j`,col);
+      }
+      html+=`</div>`;
+
+      // Détail par rituel — Morning
+      if(hasMr){
+        html+=`<div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">🌅 Détail morning</div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px">`;
+        Object.values(mrCounts).forEach(r=>{
+          const pct=mrDays.length?Math.round(r.count/mrDays.length*100):0;
+          const col=pct>=75?'var(--sage)':pct>=40?'#F5A623':'var(--red)';
+          html+=`<div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <span style="font-size:12px">${r.e} ${r.label}</span>
+              <span style="font-size:12px;font-weight:700;color:${col}">${r.count}/${mrDays.length}</span>
+            </div>
+            ${bilanBar(r.count,mrDays.length,col)}
+          </div>`;
+        });
+        html+=`</div>`;
+      }
+
+      // Détail par rituel — Night
+      if(hasNr){
+        html+=`<div style="font-size:11px;font-weight:700;color:var(--lilac);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">🌙 Détail night</div>
+          <div style="display:flex;flex-direction:column;gap:5px">`;
+        Object.values(nrCounts).forEach(r=>{
+          const pct=nrDays.length?Math.round(r.count/nrDays.length*100):0;
+          const col=pct>=75?'var(--sage)':pct>=40?'#F5A623':'var(--red)';
+          html+=`<div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+              <span style="font-size:12px">${r.e} ${r.label}</span>
+              <span style="font-size:12px;font-weight:700;color:${col}">${r.count}/${nrDays.length}</span>
+            </div>
+            ${bilanBar(r.count,nrDays.length,col)}
+          </div>`;
+        });
+        html+=`</div>`;
+      }
+
+      html+=`</div>`;
+    }
+  }
+
   // Résumé journalier
   html+=`<div class="card" style="margin-bottom:14px">
     <div style="font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px"><span>📅</span> Résumé par jour</div>
@@ -4124,6 +4209,10 @@ function renderBilan(){
     const checks=S.suivi.dailyChecks[dk];
     const rulesCount=checks?Object.values(checks.rules||{}).filter(Boolean).length:null;
     const water=checks?checks.water||0:null;
+    const mrDone=checks?MORNING_ROUTINE.filter(r=>(checks.morning||{})[r.id]).length:null;
+    const nrDone=checks?NIGHT_ROUTINE.filter(r=>(checks.night||{})[r.id]).length:null;
+    const hasMorning=mrDone!==null&&mrDone>0;
+    const hasNight=nrDone!==null&&nrDone>0;
     const hasData=macros.kcal>0||checks;
     const kcalColor=macros.kcal&&goalK?(macros.kcal>goalK*1.05?'var(--red)':macros.kcal<goalK*0.85?'#F5A623':'var(--sage)'):'var(--muted)';
     html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${hasData?'var(--bg)':'transparent'};border-radius:10px;border:1px solid ${hasData?'var(--border)':'transparent'}">
@@ -4133,6 +4222,8 @@ function renderBilan(){
         ${macros.prot?`<span style="font-size:11px;color:var(--proto)">P ${macros.prot}g</span>`:''}
         ${checks&&rulesCount!==null?`<span style="font-size:11px;color:var(--muted)">✅ ${rulesCount}/${GOLDEN_RULES.length}</span>`:''}
         ${water?`<span style="font-size:11px;color:var(--proto)">💧${water}ml</span>`:''}
+        ${hasMorning?`<span style="font-size:11px;color:var(--gold)">🌅 ${mrDone}/${MORNING_ROUTINE.length}</span>`:''}
+        ${hasNight?`<span style="font-size:11px;color:var(--lilac)">🌙 ${nrDone}/${NIGHT_ROUTINE.length}</span>`:''}
       </div>
     </div>`;
   }
