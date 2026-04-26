@@ -426,7 +426,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- Photo Import Modal -->
-<div class="modal-overlay hidden" id="modal-scan">
+<div class="modal-overlay z-top hidden" id="modal-scan">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">📸 Importer depuis une photo<button class="btn-icon" onclick="closeScanModal()">✕</button></div>
 
@@ -484,7 +484,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- Recipe Photo Import Modal -->
-<div class="modal-overlay hidden" id="modal-scan-recipe">
+<div class="modal-overlay z-top hidden" id="modal-scan-recipe">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">📸 Importer une recette depuis photo<button class="btn-icon" onclick="closeScanRecipeModal()">✕</button></div>
 
@@ -725,7 +725,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 </div>
 
 <!-- Editable Scan Recipe Result Modal -->
-<div class="modal-overlay hidden" id="modal-scan-recipe-edit">
+<div class="modal-overlay z-top hidden" id="modal-scan-recipe-edit">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">🍽️ Recette détectée — Vérifier <button class="btn-icon" onclick="closeM('modal-scan-recipe-edit')">✕</button></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Modifie si besoin, puis crée la recette.</div>
@@ -2236,9 +2236,13 @@ function getMenuMon(){return addDays(getMonday(),menuWkOffset*7);}
 // Helper: get macros from any recipe (including free meals)
 function getRecipeMacros(r){
   if(!r)return null;
-  if(r.isFree&&r.freeMacros) return {kcal:r.freeMacros.kcal,prot:r.freeMacros.prot,gluc:r.freeMacros.gluc,lip:r.freeMacros.lip,fibr:0};
-  if(r.isAlimSingle&&r.freeMacros) return {kcal:r.freeMacros.kcal,prot:r.freeMacros.prot,gluc:r.freeMacros.gluc,lip:r.freeMacros.lip,fibr:0};
-  return calcMacros(r.ingredients);
+  const mult=r._portions||1;
+  let base;
+  if(r.isFree&&r.freeMacros) base={kcal:r.freeMacros.kcal,prot:r.freeMacros.prot,gluc:r.freeMacros.gluc,lip:r.freeMacros.lip,fibr:0};
+  else if(r.isAlimSingle&&r.freeMacros) base={kcal:r.freeMacros.kcal,prot:r.freeMacros.prot,gluc:r.freeMacros.gluc,lip:r.freeMacros.lip,fibr:0};
+  else base=calcMacros(r.ingredients);
+  if(mult===1)return base;
+  return{kcal:Math.round(base.kcal*mult),prot:Math.round(base.prot*mult*10)/10,gluc:Math.round(base.gluc*mult*10)/10,lip:Math.round(base.lip*mult*10)/10,fibr:Math.round((base.fibr||0)*mult*10)/10};
 }
 
 function renderMenu(){
@@ -2308,10 +2312,17 @@ function getSlotIds(dayMenu, slot){
   return [v];
 }
 
-// Résout une entrée de slot (string ID ou objet inline) en objet recipe-like
+// Résout une entrée de slot (string ID, {id,portions}, ou objet inline) en objet recipe-like
 function resolveEntry(entry){
   if(!entry) return null;
   if(typeof entry === 'string') return S.recipes.find(x=>x.id===entry)||null;
+  // objet avec portions (recette + multiplicateur)
+  if(entry.id && entry.portions!==undefined && !entry.isFree && !entry.isAlimSingle && !entry.isMenuOnly){
+    const base=S.recipes.find(x=>x.id===entry.id);
+    if(!base)return null;
+    return {...base, _portions:entry.portions};
+  }
+  // objet inline (repas libre ou aliment seul) — déjà complet
   return entry;
 }
 
@@ -2377,7 +2388,7 @@ function renderDayMenu(){
       const rid=r.id;
       return`<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:${idx<items.length-1?'8px':'0'}">
         <div style="flex:1">
-          <div class="meal-name" style="font-size:13px">${isFree?'✏️ ':isAlimSingle?'🥦 ':''}${r.name}</div>
+          <div class="meal-name" style="font-size:13px">${isFree?'✏️ ':isAlimSingle?'🥦 ':''}${r.name}${r._portions&&r._portions!==1?`<span style="font-size:11px;font-weight:700;color:var(--terra);background:rgba(200,100,50,0.08);border-radius:5px;padding:1px 6px;margin-left:5px">×${r._portions}</span>`:''}</div>
           <div class="meal-macros"><span>${m.kcal} kcal</span><span>·</span><span style="color:var(--proto)">${Math.round(m.prot*10)/10}g P</span><span>·</span><span style="color:var(--gold)">${Math.round(m.gluc*10)/10}g G</span><span>·</span><span style="color:var(--terra)">${Math.round(m.lip*10)/10}g L</span></div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;width:auto">
@@ -2669,22 +2680,45 @@ function renderPickList(q){
   list.innerHTML=recs.map(r=>{
     const m=getRecipeMacros(r);
     const rcats=Array.isArray(r.cats)?r.cats:[r.cat];
-    return`<div class="rec-card" onclick="pickRecipe('${r.id}')">
-      <div class="flex-b mb-4"><div class="rec-name">${r.name}</div>
-      <div class="flex gap-4" style="flex-wrap:wrap">${rcats.map(c=>`<span style="font-size:10px;color:var(--muted)">${c}</span>`).join('<span style="color:var(--border)">·</span>')}</div></div>
-      <div class="rec-macros"><span class="tag tag-k">${m.kcal} kcal</span><span class="tag tag-p">${m.prot}g P</span></div>
+    const safeId=r.id.replace(/'/g,"\'");
+    return`<div class="rec-card" id="rcard-${r.id}" style="cursor:pointer">
+      <div onclick="togglePortionsPicker('${safeId}')" style="display:flex;flex-direction:column;gap:4px">
+        <div class="flex-b"><div class="rec-name">${r.name}</div>
+        <div class="flex gap-4" style="flex-wrap:wrap">${rcats.map(c=>`<span style="font-size:10px;color:var(--muted)">${c}</span>`).join('<span style="color:var(--border)">·</span>')}</div></div>
+        <div class="rec-macros"><span class="tag tag-k">${m.kcal} kcal</span><span class="tag tag-p">${m.prot}g P</span><span style="font-size:10px;color:var(--muted)">· pour 1 portion</span></div>
+      </div>
+      <div id="ppicker-${r.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">Nombre de portions :</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${[0.25,0.5,0.75,1,1.25,1.5,2,2.5,3].map(p=>`<button onclick="event.stopPropagation();pickRecipe('${safeId}',${p})" style="padding:4px 10px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">${p}×</button>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;margin-top:8px">
+          <input type="number" id="ppinput-${r.id}" placeholder="Ex: 1.5" min="0.1" max="10" step="0.25" style="flex:1;font-size:13px;padding:6px 10px" onclick="event.stopPropagation()">
+          <button onclick="event.stopPropagation();pickRecipe('${safeId}',parseFloat(document.getElementById('ppinput-${r.id}').value)||1)" style="padding:6px 14px;border-radius:8px;border:none;background:var(--dark);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">OK</button>
+        </div>
+      </div>
     </div>`;
   }).join('')||'<div class="empty" style="padding:18px">Aucune recette</div>';
 }
 
-function pickRecipe(rid){
+function togglePortionsPicker(rid){
+  const el=document.getElementById('ppicker-'+rid);
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  document.querySelectorAll('[id^="ppicker-"]').forEach(e=>e.style.display='none');
+  if(!isOpen)el.style.display='block';
+}
+
+function pickRecipe(rid, portions){
   if(!pickingSlot)return;
   const{dk,slot}=pickingSlot;
   const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
   if(!S.menu[wk])S.menu[wk]={};
   if(!S.menu[wk][dk])S.menu[wk][dk]={};
   const cur=getSlotIds(S.menu[wk][dk],slot);
-  S.menu[wk][dk][slot]=[...cur,rid];
+  const p=parseFloat(portions)||1;
+  const entry=(p!==1)?{id:rid,portions:p}:rid;
+  S.menu[wk][dk][slot]=[...cur,entry];
   save();closeM('modal-pick');renderMenu();
 }
 
@@ -2699,18 +2733,28 @@ function clearSlot(){
 // ── Onglets du modal pick ──────────────────────────────────────
 let _pickAlimId=null;
 function switchPickTab(tab){
+  // Conserver la saisie entre onglets
+  const recQ=document.getElementById('pick-search').value;
+  const alimQ=document.getElementById('pick-alim-search').value;
   document.getElementById('pick-tab-rec').classList.toggle('active',tab==='rec');
   document.getElementById('pick-tab-alim').classList.toggle('active',tab==='alim');
   document.getElementById('pick-panel-rec').style.display=tab==='rec'?'flex':'none';
   document.getElementById('pick-panel-alim').style.display=tab==='alim'?'block':'none';
   if(tab==='alim'){
-    document.getElementById('pick-alim-search').value='';
-    document.getElementById('pick-alim-dropdown').classList.add('hidden');
+    const carry=alimQ||recQ;
+    document.getElementById('pick-alim-search').value=carry;
+    _pickAlimId=null;
     document.getElementById('pick-alim-selected').style.display='none';
     document.getElementById('pick-alim-g').value='';
     document.getElementById('pick-alim-preview').style.display='none';
     document.getElementById('pick-alim-label').value='';
-    _pickAlimId=null;
+    if(carry){renderPickAlimList(carry);}
+    else{document.getElementById('pick-alim-dropdown').classList.add('hidden');}
+  }
+  if(tab==='rec'){
+    const carry=recQ||alimQ;
+    document.getElementById('pick-search').value=carry;
+    renderPickList(carry);
   }
 }
 
