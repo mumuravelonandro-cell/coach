@@ -284,6 +284,24 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div id="weight-chart"></div>
     <div id="weight-list"></div>
   </div>
+  <!-- Morning Routine -->
+  <div class="card mb-14">
+    <div class="flex-b mb-14">
+      <div style="font-size:14px;font-weight:700">🌅 Morning routine</div>
+      <div style="font-size:11px;color:var(--muted)" id="morning-count">0/5</div>
+    </div>
+    <div id="morning-list"></div>
+    <div class="progress-bg" style="margin-top:11px"><div class="progress-fill" id="morning-prog" style="width:0%;background:var(--gold)"></div></div>
+  </div>
+  <!-- Night Routine -->
+  <div class="card mb-14">
+    <div class="flex-b mb-14">
+      <div style="font-size:14px;font-weight:700">🌙 Night routine</div>
+      <div style="font-size:11px;color:var(--muted)" id="night-count">0/5</div>
+    </div>
+    <div id="night-list"></div>
+    <div class="progress-bg" style="margin-top:11px"><div class="progress-fill" id="night-prog" style="width:0%;background:var(--lilac)"></div></div>
+  </div>
 </div>
 
 <!-- ===== SPORT (exact tracker) ===== -->
@@ -1014,6 +1032,22 @@ const GOLDEN_RULES = [
   {id:'lent',e:'🐢',l:'Mangé lentement',d:'20 min minimum par repas, mâcher correctement'},
   {id:'sommeil',e:'😴',l:'Sommeil respecté',d:'7-8h de sommeil, clé de la récupération'},
   {id:'craquage',e:'🚫',l:'Pas de craquage si pas prévu',d:'Tenir l\'objectif sans écart non planifié'},
+];
+
+const MORNING_ROUTINE = [
+  {id:'mr_tel',e:'📵',l:'Pas de téléphone 30 min',d:'Garder les 30 premières minutes sans écran'},
+  {id:'mr_vacuum',e:'🧘',l:'Stomach vacuum',d:'Exercice de gainage abdominal à jeun'},
+  {id:'mr_dejscreen',e:'🥣',l:'Petit-déj sans écran',d:'Manger en pleine conscience, sans distractions'},
+  {id:'mr_lumiere',e:'☀️',l:'Lumière naturelle + 5 respirations',d:'S\'exposer à la lumière du jour, respirer profondément'},
+  {id:'mr_skincare',e:'✨',l:'Skincare routine',d:'Soin visage du matin'},
+];
+
+const NIGHT_ROUTINE = [
+  {id:'nr_douche',e:'🚿',l:'Douche + skincare + bodycare',d:'Rituel corps complet du soir'},
+  {id:'nr_tel',e:'📵',l:'Pas de téléphone après 22h30',d:'Couper les écrans pour favoriser l\'endormissement'},
+  {id:'nr_lit',e:'🛏️',l:'Au lit à 22h30',d:'Respecter l\'heure de coucher pour 7-8h de sommeil'},
+  {id:'nr_lecture',e:'📖',l:'Lecture',d:'Quelques pages avant de dormir'},
+  {id:'nr_noscreen',e:'🎭',l:'Activité no screen',d:'Dessin, journal, méditation ou autre activité sans écran'},
 ];
 
 // ============================================================
@@ -2430,7 +2464,6 @@ function openPickModal(slot){
   pickingSlot={dk:curMenuDay,slot};
   document.getElementById('pick-title').textContent='Choisir pour '+MEAL_LABELS[slot];
   document.getElementById('pick-search').value='';
-  document.getElementById('pick-alim-search').value='';
   switchPickTab('rec');
   renderPickList('');
   openM('modal-pick');
@@ -2921,7 +2954,9 @@ function applyCopySlot(){
 
 function getTodayChecks(){
   const today=todayKey();
-  if(!S.suivi.dailyChecks[today])S.suivi.dailyChecks[today]={rules:{},water:0};
+  if(!S.suivi.dailyChecks[today])S.suivi.dailyChecks[today]={rules:{},water:0,morning:{},night:{}};
+  if(!S.suivi.dailyChecks[today].morning)S.suivi.dailyChecks[today].morning={};
+  if(!S.suivi.dailyChecks[today].night)S.suivi.dailyChecks[today].night={};
   return S.suivi.dailyChecks[today];
 }
 
@@ -2946,12 +2981,43 @@ function renderSuivi(){
   const dc=Object.values(checks.rules).filter(Boolean).length;
   document.getElementById('rules-prog').style.width=(dc/8*100)+'%';
   document.getElementById('rules-count').textContent=`${dc}/8 règles respectées`;
+  // Morning routine
+  const ml=document.getElementById('morning-list');
+  ml.innerHTML=MORNING_ROUTINE.map(r=>{
+    const done=!!(checks.morning||{})[r.id];
+    return`<div class="check-item ${done?'done':''}" onclick="toggleRoutine('morning','${r.id}')">
+      <div class="check-box">${done?'✓':''}</div>
+      <div><div style="font-size:13px;font-weight:500">${r.e} ${r.l}</div><div style="font-size:11px;color:var(--muted)">${r.d}</div></div>
+    </div>`;
+  }).join('');
+  const mc=Object.values(checks.morning||{}).filter(Boolean).length;
+  document.getElementById('morning-prog').style.width=(mc/MORNING_ROUTINE.length*100)+'%';
+  document.getElementById('morning-count').textContent=`${mc}/${MORNING_ROUTINE.length}`;
+  // Night routine
+  const nl=document.getElementById('night-list');
+  nl.innerHTML=NIGHT_ROUTINE.map(r=>{
+    const done=!!(checks.night||{})[r.id];
+    return`<div class="check-item ${done?'done':''}" onclick="toggleRoutine('night','${r.id}')">
+      <div class="check-box">${done?'✓':''}</div>
+      <div><div style="font-size:13px;font-weight:500">${r.e} ${r.l}</div><div style="font-size:11px;color:var(--muted)">${r.d}</div></div>
+    </div>`;
+  }).join('');
+  const nc=Object.values(checks.night||{}).filter(Boolean).length;
+  document.getElementById('night-prog').style.width=(nc/NIGHT_ROUTINE.length*100)+'%';
+  document.getElementById('night-count').textContent=`${nc}/${NIGHT_ROUTINE.length}`;
   renderWater();
   renderWeightSection();
 }
 
 function toggleRule(id){
   const c=getTodayChecks();c.rules[id]=!c.rules[id];save();renderSuivi();
+}
+
+function toggleRoutine(type,id){
+  const c=getTodayChecks();
+  if(!c[type])c[type]={};
+  c[type][id]=!c[type][id];
+  save();renderSuivi();
 }
 
 // Water - gourdes 600ml
