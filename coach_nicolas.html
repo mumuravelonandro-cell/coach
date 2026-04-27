@@ -667,6 +667,26 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
 <div class="modal-overlay hidden" id="modal-menu-rec-edit">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">⚖️ <span id="mre-title">Modifier les grammages</span><button class="btn-icon" onclick="closeM('modal-menu-rec-edit')">✕</button></div>
+    <!-- Section portions rapide -->
+    <div style="background:var(--bg);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.7px;text-transform:uppercase;margin-bottom:8px">Nombre de portions</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="mre-portions-btns">
+        <button onclick="mreSetPortions(0.25)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">0.25×</button>
+        <button onclick="mreSetPortions(0.5)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">0.5×</button>
+        <button onclick="mreSetPortions(0.75)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">0.75×</button>
+        <button onclick="mreSetPortions(1)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:var(--dark);color:#fff;border-color:var(--dark);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">1×</button>
+        <button onclick="mreSetPortions(1.25)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">1.25×</button>
+        <button onclick="mreSetPortions(1.5)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">1.5×</button>
+        <button onclick="mreSetPortions(2)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">2×</button>
+        <button onclick="mreSetPortions(2.5)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">2.5×</button>
+        <button onclick="mreSetPortions(3)" style="padding:4px 9px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--dark)">3×</button>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <input type="number" id="mre-portions-input" placeholder="Ex: 1.5" min="0.1" max="10" step="0.25" style="flex:1;font-size:13px;padding:6px 10px" oninput="mrePortionsInputChange(this.value)">
+        <button onclick="savePortionsOnly()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--dark);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✓ Appliquer</button>
+      </div>
+    </div>
+    <div class="divider" style="margin:0 0 14px"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Modifie les quantités ou les ingrédients, puis enregistre comme nouvelle version de la recette.</div>
     <div class="mb-12"><label>Nom de la recette</label><input type="text" id="mre-name" placeholder="Nom"></div>
     <div class="flex-b mb-8"><label style="margin:0">Ingrédients (pesés CRU)</label><button class="btn btn-sm btn-outline" onclick="mreAddRow()">+ Ajouter</button></div>
@@ -1082,7 +1102,7 @@ function setSyncUI(st){
   syncStatus=st;
   const btn=document.getElementById('sync-btn');
   if(!btn)return;
-  btn.textContent = st==='syncing'?'⏳':st==='ok'?'✓ Sync':st==='error'?'✗ Erreur':'☁️ Sync';
+  btn.textContent = st==='syncing'?'⏳':st==='ok'?'✅ Sync':st==='error'?'✗ Erreur':'☁️ Sync';
   btn.style.color = st==='ok'?'#7A9E7E':st==='error'?'#E05252':'#9B8B7E';
   if(st==='ok') setTimeout(()=>{ btn.textContent='☁️ Sync'; btn.style.color='#9B8B7E'; },2000);
 }
@@ -2448,7 +2468,15 @@ function removeSlotItem(slot, rid){
 function openPickModal(slot){
   pickingSlot={dk:curMenuDay,slot};
   document.getElementById('pick-title').textContent='Choisir pour '+MEAL_LABELS[slot];
+  // Réinitialiser TOUS les champs de recherche à chaque ouverture
   document.getElementById('pick-search').value='';
+  document.getElementById('pick-alim-search').value='';
+  _pickAlimId=null;
+  document.getElementById('pick-alim-selected').style.display='none';
+  document.getElementById('pick-alim-g').value='';
+  document.getElementById('pick-alim-preview').style.display='none';
+  document.getElementById('pick-alim-label').value='';
+  document.getElementById('pick-alim-dropdown').classList.add('hidden');
   switchPickTab('rec');
   renderPickList('');
   openM('modal-pick');
@@ -2511,17 +2539,58 @@ function saveEditAlimSingle(){
 // ============================================================
 // MENU RECIPE EDIT (grammages + ingrédients depuis le menu)
 // ============================================================
-let _mreRecId=null, _mreSlot=null;
+let _mreRecId=null, _mreSlot=null, _mrePortions=1;
 
 function openMenuRecipeEdit(rid, slot){
   const r=S.recipes.find(x=>x.id===rid);
   if(!r)return;
   _mreRecId=rid;
   _mreSlot=slot;
+  // Récupérer les portions actuelles depuis l'entrée du menu
+  const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
+  const entries=getSlotIds((S.menu[wk]||{})[curMenuDay]||{},slot);
+  const entry=entries.find(e=>entryId(e)===rid);
+  _mrePortions=(entry&&typeof entry==='object'&&entry.portions)?entry.portions:1;
   document.getElementById('mre-title').textContent='Modifier : '+r.name;
   document.getElementById('mre-name').value=r.name;
+  // Mettre à jour l'affichage des boutons et l'input
+  mreRefreshPortionsBtns(_mrePortions);
+  document.getElementById('mre-portions-input').value=_mrePortions!==1?_mrePortions:'';
   renderMreIngrs(JSON.parse(JSON.stringify(r.ingredients)));
   openM('modal-menu-rec-edit');
+}
+
+function mreRefreshPortionsBtns(val){
+  document.querySelectorAll('#mre-portions-btns button').forEach(btn=>{
+    const p=parseFloat(btn.textContent);
+    btn.style.background=p===val?'var(--dark)':'#fff';
+    btn.style.color=p===val?'#fff':'var(--dark)';
+    btn.style.borderColor=p===val?'var(--dark)':'var(--border)';
+  });
+}
+
+function mreSetPortions(p){
+  _mrePortions=p;
+  document.getElementById('mre-portions-input').value=p===1?'':p;
+  mreRefreshPortionsBtns(p);
+}
+
+function mrePortionsInputChange(v){
+  const p=parseFloat(v);
+  if(p>0){_mrePortions=p;mreRefreshPortionsBtns(p);}
+}
+
+function savePortionsOnly(){
+  const p=parseFloat(document.getElementById('mre-portions-input').value)||_mrePortions||1;
+  if(!_mreSlot||!curMenuDay)return;
+  const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
+  if(!S.menu[wk]||!S.menu[wk][curMenuDay])return;
+  const entries=getSlotIds(S.menu[wk][curMenuDay],_mreSlot);
+  S.menu[wk][curMenuDay][_mreSlot]=entries.map(e=>{
+    if(entryId(e)!==_mreRecId)return e;
+    return p===1?_mreRecId:{id:_mreRecId,portions:p};
+  });
+  save();closeM('modal-menu-rec-edit');renderMenu();
 }
 
 let _mreIngrs=[];
@@ -3267,51 +3336,43 @@ function renderSport(){
     });
     html+=`</div>`;
 
-    // ── Histogramme des pas de la semaine (SVG) ────────────────
+    // ── Histogramme des pas de la semaine ──────────────────────
     const STEP_GOAL=10000;
     const hasAnySteps=weekStepsDays.some(v=>v>0);
     if(hasAnySteps){
-      const maxSteps=Math.max(STEP_GOAL,...weekStepsDays);
-      const svgW=320,svgH=110,barW=30,gap=16;
-      const totalW=7*(barW+gap)-gap;
-      const offsetX=(svgW-totalW)/2;
-      const chartH=svgH-26;
-      const yGoal=Math.round((1-STEP_GOAL/maxSteps)*chartH);
-      const avgY=weekStepsAvg>0?Math.round((1-weekStepsAvg/maxSteps)*chartH):null;
-      let barsSvg='';
-      weekStepsDays.forEach((steps,i)=>{
-        const x=offsetX+i*(barW+gap);
-        const pct=steps/maxSteps;
-        const barH=Math.max(steps>0?3:0,Math.round(pct*chartH));
-        const y=chartH-barH;
+      const barMaxVal=Math.max(STEP_GOAL*1.15,...weekStepsDays);
+      const BAR_H=80;
+      const AVG_COL='#9B6BB5';
+      const bars=weekStepsDays.map((steps,i)=>{
+        const barH=Math.round((steps/barMaxVal)*BAR_H);
         const col=steps>=STEP_GOAL?'#7A9E7E':steps>=6000?'#C9A84C':steps>0?'#1E8A45':'#E8DDD0';
         const isToday_=isCurrentWeek&&i===today;
-        barsSvg+=`<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="5" fill="${col}" opacity="${isToday_?1:.82}"/>`;
-        if(steps>0){
-          const lbl=steps>=1000?(Math.round(steps/100)/10).toString().replace('.',',')+'\u202fk':steps+'';
-          barsSvg+=`<text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${col}" font-family="inherit">${lbl}</text>`;
-        }
-        barsSvg+=`<text x="${x+barW/2}" y="${svgH-8}" text-anchor="middle" font-size="9.5" fill="${isToday_?'#1E8A45':'#9B8B7E'}" font-weight="${isToday_?700:400}" font-family="inherit">${DAYS_SHORT[i]}</text>`;
-        if(isToday_) barsSvg+=`<rect x="${x+4}" y="${svgH-20}" width="${barW-8}" height="2.5" rx="1.5" fill="#1E8A45" opacity=".6"/>`;
-      });
-      barsSvg+=`<line x1="${offsetX-4}" y1="${yGoal}" x2="${offsetX+totalW+4}" y2="${yGoal}" stroke="#1E8A45" stroke-width="1.2" stroke-dasharray="4 3" opacity=".75"/>
-        <text x="${offsetX+totalW+8}" y="${yGoal+3.5}" font-size="8" fill="#1E8A45" opacity=".9" font-family="inherit">10k</text>`;
-      if(avgY!==null&&Math.abs(avgY-yGoal)>8){
-        barsSvg+=`<line x1="${offsetX-4}" y1="${avgY}" x2="${offsetX+totalW+4}" y2="${avgY}" stroke="#4A7FA5" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>
-          <text x="${offsetX+totalW+8}" y="${avgY+3.5}" font-size="8" fill="#4A7FA5" opacity=".9" font-family="inherit">∅</text>`;
-      }
-      html+=`<div style="background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:14px 18px;margin-top:14px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">👟</span><span style="font-size:13px;font-weight:600">Pas · semaine</span></div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:11px;color:#9B8B7E">∅ <strong style="color:${weekStepsAvg>=STEP_GOAL?'#7A9E7E':weekStepsAvg>=6000?'#C9A84C':'#1E8A45'}">${weekStepsAvg.toLocaleString('fr-FR')}</strong> pas/j</span>
-            <span style="font-size:11px;background:#F5F0E8;border-radius:20px;padding:2px 8px;color:#9B8B7E">${weekStepsDays.filter(v=>v>=STEP_GOAL).length} / 7 jours à 10k</span>
+        const lbl=steps>=1000?(steps/1000).toFixed(1)+'k':(steps>0?steps:'—');
+        const lblCol=steps>0?col:'#E8DDD0';
+        return`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:0 0 38px">
+          <div style="display:flex;flex-direction:column;justify-content:flex-end;height:${BAR_H}px">
+            <div style="width:24px;height:${barH}px;background:${col};border-radius:4px 4px 0 0;transition:height .4s ease;min-height:${steps>0?2:0}px"></div>
           </div>
+          <div style="font-size:9px;font-weight:${isToday_?700:400};color:${isToday_?'#1E8A45':'#9B8B7E'}">${DAYS_SHORT[i]}</div>
+          <div style="font-size:9px;font-weight:700;color:${lblCol};text-align:center">${lbl}</div>
+        </div>`;
+      }).join('');
+      const goalLineH=Math.round((STEP_GOAL/barMaxVal)*BAR_H);
+      const avgLineH=weekStepsAvg>0?Math.round((weekStepsAvg/barMaxVal)*BAR_H):null;
+      const avgLbl=weekStepsAvg>=1000?(weekStepsAvg/1000).toFixed(1)+'k':weekStepsAvg;
+      html+=`<div style="background:#fff;border-radius:16px;border:1px solid #E8DDD0;padding:16px 18px;margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:6px">
+          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px">🦶</span><span style="font-size:13px;font-weight:600">Pas de la semaine</span></div>
+          <div style="display:flex;align-items:center;gap:5px"><div style="width:16px;height:0;border-top:1.5px dashed #1E8A45"></div><span style="font-size:10px;color:#9B8B7E">10 000 pas</span></div>
         </div>
-        <svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="display:block;overflow:visible">${barsSvg}</svg>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:8px;font-size:10px;color:#9B8B7E">
-          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#1E8A45;border-radius:2px"></span>Objectif 10 000</span>
-          ${avgY!==null&&Math.abs(avgY-yGoal)>8?`<span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:2px;background:#4A7FA5;border-radius:2px;opacity:.8"></span>Moyenne</span>`:''}
+        <div style="position:relative">
+          <div style="display:flex;gap:6px;align-items:flex-end;justify-content:center">
+            ${bars}
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:${goalLineH+36}px;border-top:1.5px dashed #1E8A45;pointer-events:none">
+            <span style="position:absolute;right:0;top:-10px;font-size:9px;font-weight:600;color:#1E8A45;background:#fff;padding:0 2px">10k</span>
+          </div>
+          ${avgLineH&&weekStepsAvg!==STEP_GOAL?`<div style="position:absolute;left:0;right:0;bottom:${avgLineH+36}px;border-top:1.5px dashed ${AVG_COL};pointer-events:none"><span style="position:absolute;right:0;top:-10px;font-size:9px;font-weight:600;color:${AVG_COL};background:#fff;padding:0 2px">∅ ${avgLbl}</span></div>`:''}
         </div>
       </div>`;
     }
