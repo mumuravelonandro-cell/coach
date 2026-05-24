@@ -590,6 +590,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         </div>
       </div>
       <div><label>Lien vidéo (optionnel)</label><input type="url" id="rec-url" placeholder="https://youtube.com/..."></div>
+      <div><label>Poids total prêt (g) <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(optionnel)</span></label><input type="number" id="rec-poids-total" placeholder="Ex: 420" min="0" step="1" oninput="updateRecCalc()"></div>
     </div>
     <div class="flex-b mb-8"><label style="margin:0">Ingrédients (pesés CRU)</label><button class="btn btn-sm btn-outline" onclick="addIngrRow()">+ Ajouter</button></div>
     <div id="ingr-list" class="mb-12"></div>
@@ -601,6 +602,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         <div style="text-align:center;padding:7px;background:#fff;border-radius:9px"><div style="font-size:17px;font-weight:800;color:var(--gold)" id="c-gluc">0g</div><div class="text-m">glucides</div></div>
         <div style="text-align:center;padding:7px;background:#fff;border-radius:9px"><div style="font-size:17px;font-weight:800;color:var(--terra)" id="c-lip">0g</div><div class="text-m">lipides</div></div>
       </div>
+      <div id="c-density" style="font-size:11px;color:var(--muted);text-align:center;margin-top:9px;display:none"></div>
     </div>
     <div class="flex gap-8">
       <button class="btn btn-dark w100" onclick="saveRecipe()">Enregistrer</button>
@@ -776,6 +778,17 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
         <button onclick="savePortionsOnly()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--dark);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✓ Appliquer</button>
       </div>
     </div>
+    <!-- Section grammage mangé (visible si poids total prêt défini) -->
+    <div id="mre-grams-section" style="background:rgba(78,205,196,0.10);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:none">
+      <div style="font-size:11px;font-weight:700;color:var(--sage);letter-spacing:.7px;text-transform:uppercase;margin-bottom:4px">⚖️ Grammage mangé</div>
+      <div id="mre-grams-ref" style="font-size:11px;color:var(--muted);margin-bottom:8px"></div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <input type="number" id="mre-grams-input" placeholder="Ex: 150" min="0" step="1" style="flex:1;font-size:13px;padding:6px 10px" oninput="mreGramsInputChange(this.value)">
+        <span style="font-size:13px;font-weight:600;color:var(--muted)">g</span>
+        <button onclick="saveGramsOnly()" style="padding:6px 14px;border-radius:8px;border:none;background:var(--sage);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✓ Appliquer</button>
+      </div>
+      <div id="mre-grams-calc" style="font-size:12px;font-weight:700;color:var(--sage);margin-top:8px"></div>
+    </div>
     <div class="divider" style="margin:0 0 14px"></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Modifie les quantités ou les ingrédients, puis enregistre comme nouvelle version de la recette.</div>
     <div class="mb-12"><label>Nom de la recette</label><input type="text" id="mre-name" placeholder="Nom"></div>
@@ -791,9 +804,9 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-dark w100" onclick="saveMreOverwrite()">🔄 Écraser la recette existante</button>
+      <button class="btn w100" onclick="saveMreMenuOnly()" style="background:var(--sage);color:#fff;border:none">📅 Juste pour ce menu (sans modifier la bibliothèque)</button>
       <button class="btn btn-outline w100" onclick="saveMreAsNew()">✨ Créer une nouvelle recette</button>
-      <button class="btn btn-outline w100" onclick="saveMreMenuOnly()" style="font-size:12px">📅 Juste pour ce menu (sans modifier la bibliothèque)</button>
+      <button class="btn btn-outline w100" onclick="saveMreOverwrite()" style="font-size:12px;color:var(--muted)">🔄 Écraser la recette existante</button>
     </div>
   </div>
 </div>
@@ -1208,6 +1221,13 @@ function calcMacros(ingredients){
     p+=a.prot100*gr/100;g+=a.gluc100*gr/100;l+=a.lip100*gr/100;k+=a.kcal100*gr/100;f+=(a.fibr100||0)*gr/100;
   }
   return{prot:Math.round(p*10)/10,gluc:Math.round(g*10)/10,lip:Math.round(l*10)/10,kcal:Math.round(k),fibr:Math.round(f*10)/10};
+}
+
+// Poids total de référence d'une recette : poids prêt défini, sinon somme des ingrédients crus
+function recipeTotalGrams(r){
+  if(!r)return 0;
+  if(r.poidsTotal&&r.poidsTotal>0)return r.poidsTotal;
+  return (r.ingredients||[]).reduce((s,ing)=>s+(parseFloat(ing.g)||0),0);
 }
 
 // ============================================================
@@ -2087,6 +2107,7 @@ function openRecipeModal(id){
   document.getElementById('rec-modal-title').textContent=id?'Modifier la recette':'Nouvelle recette';
   document.getElementById('rec-name').value=r?r.name:'';
   document.getElementById('rec-url').value=r?(r.url||''):'';
+  document.getElementById('rec-poids-total').value=r&&r.poidsTotal?r.poidsTotal:'';
   document.getElementById('btn-del-rec').style.display=id?'block':'none';
   // Multi-cat: r.cats is array, fallback to r.cat for old data
   const cats=r?(Array.isArray(r.cats)?r.cats:[r.cat]):[];
@@ -2207,6 +2228,16 @@ function updateRecCalc(){
   document.getElementById('c-prot').textContent=m.prot+'g';
   document.getElementById('c-gluc').textContent=m.gluc+'g';
   document.getElementById('c-lip').textContent=m.lip+'g';
+  const ptEl=document.getElementById('rec-poids-total');
+  const densEl=document.getElementById('c-density');
+  if(densEl){
+    const pt=ptEl?parseFloat(ptEl.value)||0:0;
+    if(pt>0&&m.kcal>0){
+      const per100=Math.round(m.kcal/pt*100);
+      densEl.innerHTML=`Soit <strong style="color:var(--dark)">${(m.kcal/pt).toFixed(2)} kcal/g</strong> · ${per100} kcal / 100g (poids prêt ${pt}g)`;
+      densEl.style.display='block';
+    }else{densEl.style.display='none';}
+  }
 }
 
 function saveRecipe(){
@@ -2244,7 +2275,9 @@ function _doSaveRecipe(overwrite){
   // Vérification doublon de nom (hors recette écrasée)
   const duplicate=S.recipes.find(r=>r.name.toLowerCase()===nameLower&&r.id!==targetId);
   if(duplicate)return alert(`❌ Une recette nommée "${duplicate.name}" existe déjà dans la bibliothèque.\nChoisis un autre nom pour enregistrer ta recette.`);
+  const _pt=parseFloat(document.getElementById('rec-poids-total').value)||0;
   const obj={id:targetId||('r'+Date.now()),name,cats,cat:cats[0],url:document.getElementById('rec-url').value.trim(),ingredients:ings};
+  if(_pt>0)obj.poidsTotal=_pt;
   if(overwrite&&editRecId){
     const idx=S.recipes.findIndex(r=>r.id===editRecId);
     if(idx>=0)S.recipes[idx]=obj;
@@ -2368,6 +2401,14 @@ function getSlotIds(dayMenu, slot){
 function resolveEntry(entry){
   if(!entry) return null;
   if(typeof entry === 'string') return S.recipes.find(x=>x.id===entry)||null;
+  // objet avec grammage mangé (recette + poids consommé)
+  if(entry.id && entry.grams!==undefined && !entry.isFree && !entry.isAlimSingle && !entry.isMenuOnly){
+    const base=S.recipes.find(x=>x.id===entry.id);
+    if(!base)return null;
+    const total=recipeTotalGrams(base);
+    const mult=total>0?entry.grams/total:1;
+    return {...base, _portions:mult, _grams:entry.grams};
+  }
   // objet avec portions (recette + multiplicateur)
   if(entry.id && entry.portions!==undefined && !entry.isFree && !entry.isAlimSingle && !entry.isMenuOnly){
     const base=S.recipes.find(x=>x.id===entry.id);
@@ -2440,7 +2481,7 @@ function renderDayMenu(){
       const rid=r.id;
       return`<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:${idx<items.length-1?'8px':'0'}">
         <div style="flex:1">
-          <div class="meal-name" style="font-size:13px">${isFree?'✏️ ':isAlimSingle?'🥦 ':''}${r.name}${r._portions&&r._portions!==1?`<span style="font-size:11px;font-weight:700;color:var(--terra);background:rgba(200,100,50,0.08);border-radius:5px;padding:1px 6px;margin-left:5px">×${r._portions}</span>`:''}</div>
+          <div class="meal-name" style="font-size:13px">${isFree?'✏️ ':isAlimSingle?'🥦 ':''}${r.name}${r._grams!==undefined?`<span style="font-size:11px;font-weight:700;color:var(--sage);background:rgba(78,205,196,0.14);border-radius:5px;padding:1px 6px;margin-left:5px">${r._grams}g</span>`:(r._portions&&r._portions!==1?`<span style="font-size:11px;font-weight:700;color:var(--terra);background:rgba(200,100,50,0.08);border-radius:5px;padding:1px 6px;margin-left:5px">×${r._portions}</span>`:'')}</div>
           <div class="meal-macros"><span>${m.kcal} kcal</span><span>·</span><span style="color:var(--proto)">${Math.round(m.prot*10)/10}g P</span><span>·</span><span style="color:var(--gold)">${Math.round(m.gluc*10)/10}g G</span><span>·</span><span style="color:var(--terra)">${Math.round(m.lip*10)/10}g L</span></div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
@@ -2532,6 +2573,14 @@ function renderPickList(q){
           <input type="number" id="ppinput-${r.id}" placeholder="Ex: 1.5" min="0.1" max="10" step="0.25" style="flex:1;font-size:13px;padding:6px 10px" onclick="event.stopPropagation()">
           <button onclick="event.stopPropagation();pickRecipe('${safeId}',parseFloat(document.getElementById('ppinput-${r.id}').value)||1)" style="padding:6px 14px;border-radius:8px;border:none;background:var(--dark);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">OK</button>
         </div>
+        ${r.poidsTotal?`<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">…ou par grammage mangé <span style="font-weight:400">(recette ${r.poidsTotal}g · ${m.kcal} kcal)</span> :</div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <input type="number" id="pginput-${r.id}" placeholder="Ex: 150" min="0" step="1" style="flex:1;font-size:13px;padding:6px 10px" onclick="event.stopPropagation()">
+            <span style="font-size:13px;font-weight:600;color:var(--muted)">g</span>
+            <button onclick="event.stopPropagation();pickRecipeGrams('${safeId}',parseFloat(document.getElementById('pginput-${r.id}').value)||0)" style="padding:6px 14px;border-radius:8px;border:none;background:var(--sage);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">OK</button>
+          </div>
+        </div>`:''}
       </div>
     </div>`;
   }).join('')||'<div class="empty" style="padding:18px">Aucune recette</div>';
@@ -2544,6 +2593,19 @@ function togglePortionsPicker(rid){
   // Ferme tous les autres
   document.querySelectorAll('[id^="ppicker-"]').forEach(e=>e.style.display='none');
   if(!isOpen)el.style.display='block';
+}
+
+function pickRecipeGrams(rid, grams){
+  if(!pickingSlot)return;
+  const g=parseFloat(grams)||0;
+  if(g<=0){alert('Indique un grammage supérieur à 0.');return;}
+  const{dk,slot}=pickingSlot;
+  const wk=weekKey(getMonday(new Date(dk+'T12:00:00')));
+  if(!S.menu[wk])S.menu[wk]={};
+  if(!S.menu[wk][dk])S.menu[wk][dk]={};
+  const cur=getSlotIds(S.menu[wk][dk],slot);
+  S.menu[wk][dk][slot]=[...cur,{id:rid,grams:g}];
+  save();closeM('modal-pick');renderMenu();
 }
 
 function pickRecipe(rid, portions){
@@ -2723,7 +2785,7 @@ function saveEditAlimSingle(){
 // ============================================================
 // MENU RECIPE EDIT (grammages + ingrédients depuis le menu)
 // ============================================================
-let _mreRecId=null, _mreSlot=null, _mreIngrs=[], _mrePortions=1;
+let _mreRecId=null, _mreSlot=null, _mreIngrs=[], _mrePortions=1, _mreGramsTotal=0, _mreGramsKcal=0;
 
 function openMenuRecipeEdit(rid, slot){
   const r=S.recipes.find(x=>x.id===rid);
@@ -2741,6 +2803,20 @@ function openMenuRecipeEdit(rid, slot){
   mreRefreshPortionsBtns(_mrePortions);
   document.getElementById('mre-portions-input').value=_mrePortions!==1?_mrePortions:'';
   renderMreIngrs(JSON.parse(JSON.stringify(r.ingredients)));
+  // Section grammage mangé (si la recette a un poids total prêt)
+  const gSec=document.getElementById('mre-grams-section');
+  const _total=recipeTotalGrams(r);
+  if(r.poidsTotal&&r.poidsTotal>0){
+    gSec.style.display='block';
+    const baseM=calcMacros(r.ingredients);
+    _mreGramsTotal=_total;_mreGramsKcal=baseM.kcal;
+    document.getElementById('mre-grams-ref').innerHTML=`Recette entière : <strong style="color:var(--dark)">${_total}g</strong> · ${baseM.kcal} kcal (${_total>0?(baseM.kcal/_total).toFixed(2):0} kcal/g)`;
+    const gEaten=(entry&&typeof entry==='object'&&entry.grams!==undefined)?entry.grams:'';
+    document.getElementById('mre-grams-input').value=gEaten;
+    mreGramsInputChange(gEaten);
+  }else{
+    gSec.style.display='none';_mreGramsTotal=0;_mreGramsKcal=0;
+  }
   openM('modal-menu-recipe-edit');
 }
 
@@ -2762,6 +2838,30 @@ function mreSetPortions(p){
 function mrePortionsInputChange(v){
   const p=parseFloat(v);
   if(p>0){_mrePortions=p;mreRefreshPortionsBtns(p);}
+}
+
+function mreGramsInputChange(v){
+  const g=parseFloat(v)||0;
+  const el=document.getElementById('mre-grams-calc');
+  if(!el)return;
+  if(g>0&&_mreGramsTotal>0){
+    const kcal=Math.round(_mreGramsKcal*g/_mreGramsTotal);
+    el.textContent=`≈ ${kcal} kcal pour ${g}g`;
+  }else{el.textContent='';}
+}
+
+function saveGramsOnly(){
+  const g=parseFloat(document.getElementById('mre-grams-input').value)||0;
+  if(g<=0){alert('Indique un grammage supérieur à 0.');return;}
+  if(!_mreSlot||!curMenuDay)return;
+  const wk=weekKey(getMonday(new Date(curMenuDay+'T12:00:00')));
+  if(!S.menu[wk]||!S.menu[wk][curMenuDay])return;
+  const entries=getSlotIds(S.menu[wk][curMenuDay],_mreSlot);
+  S.menu[wk][curMenuDay][_mreSlot]=entries.map(e=>{
+    if(entryId(e)!==_mreRecId)return e;
+    return {id:_mreRecId,grams:g};
+  });
+  save();closeM('modal-menu-recipe-edit');renderMenu();
 }
 
 function savePortionsOnly(){
