@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export données NutriFlow</title>
+<style>
+  body{font-family:-apple-system,system-ui,sans-serif;max-width:760px;margin:24px auto;padding:0 16px;color:#2b2b2b}
+  h1{font-size:20px}
+  button{background:#C56A4E;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:15px;font-weight:700;cursor:pointer}
+  button.sec{background:#33475b}
+  textarea{width:100%;box-sizing:border-box;height:240px;margin-top:12px;font-family:monospace;font-size:12px;border:1px solid #ccc;border-radius:8px;padding:10px}
+  .status{margin:12px 0;font-size:14px;line-height:1.5}
+  .ok{color:#2e7d32}.err{color:#c62828}
+  .hint{font-size:12px;color:#777}
+</style>
+</head>
+<body>
+<h1>🛟 Export des données NutriFlow</h1>
+<p class="hint">À ouvrir sur un appareil où la connexion au cloud fonctionne (l'ordi, ou le téléphone de Nicolas). Récupère le JSON, puis colle-le dans le champ « Coller le JSON manuellement » de l'appli coach Murielle sur ton téléphone. Lecture seule : ce fichier n'écrit jamais dans le cloud. À supprimer après usage.</p>
+
+<button onclick="go()">⬇️ Récupérer le JSON du cloud</button>
+<div id="status" class="status"></div>
+
+<div id="out" style="display:none">
+  <button class="sec" onclick="copyAll()">📋 Copier tout le JSON (bin complet)</button>
+  <textarea id="full" readonly></textarea>
+  <p class="hint">Astuce : « bin complet » suffit pour le champ de récupération de l'appli — il contient ta partie ET celle de Nicolas, et l'appli n'utilisera que la tienne.</p>
+</div>
+
+<script>
+const BIN_ID  = '69b5db9cb7ec241ddc6ba14e';
+const BIN_KEY = '$2a$10$o6vPV1rT15ZkKtURoEmYFuuT30W478STqXdsQnPM4qh32HstZyWri';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const BIN_HDR = {'Content-Type':'application/json','X-Master-Key':BIN_KEY,'X-Bin-Meta':'false'};
+
+async function go(){
+  const st = document.getElementById('status');
+  st.textContent = '⏳ Connexion au cloud…'; st.className='status';
+  try{
+    const res = await fetch(BIN_URL, {headers:BIN_HDR});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const bin = await res.json();
+    const data = (bin.record && (bin.record.shared||bin.record.murielle)) ? bin.record : bin;
+    document.getElementById('full').value = JSON.stringify(data);
+    document.getElementById('out').style.display='block';
+    const m = data.murielle||{};
+    const nbWk = m.menu ? Object.keys(m.menu).length : 0;
+    const nbW  = (m.suivi&&m.suivi.weights)?m.suivi.weights.length:0;
+    const nbAli= (data.shared&&data.shared.aliments)?data.shared.aliments.length:0;
+    st.innerHTML = '✅ <b>Récupéré.</b> '+nbAli+' aliments · '+nbWk+' semaine(s) de menu · '+nbW+' pesée(s). Copie le JSON ci-dessous.';
+    st.className='status ok';
+  }catch(e){
+    st.innerHTML = '⚠️ Échec : '+(e.message||'erreur réseau')+'. Essaie depuis un autre appareil/réseau.';
+    st.className='status err';
+  }
+}
+function copyAll(){
+  const ta = document.getElementById('full'); ta.select();
+  navigator.clipboard ? navigator.clipboard.writeText(ta.value).then(()=>flash()) : (document.execCommand('copy'), flash());
+}
+function flash(){ const st=document.getElementById('status'); st.innerHTML='📋 Copié ! Colle-le dans l\'appli sur ton téléphone.'; st.className='status ok'; }
+</script>
+</body>
+</html>
