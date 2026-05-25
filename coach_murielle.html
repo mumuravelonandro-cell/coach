@@ -147,6 +147,15 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
   <button class="nav-tab" onclick="showTab('bilan',this)">📈 Bilan</button>
 </nav>
 
+<!-- ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== -->
+<div id="recovery-banner" style="display:none;margin:12px;padding:16px;border:2px dashed var(--terra);border-radius:14px;background:var(--cream);text-align:center">
+  <div style="font-weight:700;color:var(--dark);font-size:15px;margin-bottom:4px">🛟 Récupération des données</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Tes données locales ont été effacées. Clique pour les recharger depuis le cloud (lecture seule — aucun risque d'écrasement).</div>
+  <button id="recovery-btn" onclick="recoverFromCloud()" style="background:var(--terra);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">⬇️ Récupérer mes données du cloud</button>
+  <div id="recovery-status" style="margin-top:12px;font-size:13px;color:var(--dark);line-height:1.5"></div>
+</div>
+<!-- ====================================================== -->
+
 <!-- ===== ALIMENTS ===== -->
 <div id="page-aliments" class="page">
   <div class="flex-b mb-20">
@@ -936,6 +945,12 @@ let _binLastData  = null;
 let _binCache     = null;
 let _pendingSave  = false; // true si un save cloud n'a pas encore été confirmé
 
+/* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+// Mode récupération : ne lit PAS le cloud au démarrage et N'ÉCRIT JAMAIS vers le cloud.
+// Permet de récupérer les données cloud en local sans aucun risque d'écrasement.
+const RECOVERY_MODE = true;
+/* ====================================================== */
+
 // Charge depuis le BIN (shared + perso), fallback localStorage
 async function loadFromBin(){
   try{
@@ -965,6 +980,9 @@ async function loadFromBin(){
 // Sauvegarde dans le BIN — debounce 600ms, indicateur visuel, protection beforeunload
 async function _doSaveToBin(){
   _binSaveTimer = null;
+  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+  if(RECOVERY_MODE){ console.warn('[RECOVERY] écriture cloud bloquée'); _pendingSave=false; return; }
+  /* ====================================================== */
   const data = _binLastData;
   if(!data) return;
   setSyncUI('syncing');
@@ -997,6 +1015,13 @@ async function _doSaveToBin(){
 }
 
 async function saveToBin(store){
+  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+  if(RECOVERY_MODE){
+    // En mode récupération : sauvegarde locale uniquement, jamais vers le cloud.
+    try{localStorage.setItem(STORE_KEY, JSON.stringify(store));}catch(e){}
+    return;
+  }
+  /* ====================================================== */
   if(_binSaveTimer) clearTimeout(_binSaveTimer);
   _binLastData = store;
   _pendingSave = true;
@@ -1006,6 +1031,9 @@ async function saveToBin(store){
 
 // Flush immédiat si on ferme/recharge la page avec un save en attente
 window.addEventListener('beforeunload', ()=>{
+  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+  if(RECOVERY_MODE) return; // jamais d'écriture cloud en mode récupération
+  /* ====================================================== */
   if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
   if(_pendingSave && _binLastData && _binCache){
     // Mise à jour synchrone du cache local en dernier recours
@@ -1131,7 +1159,9 @@ function migrateFreeMeals(){
 // Bouton sync manuel dans la nav
 let syncStatus = null;
 async function forceSyncUp(){
-  if(_cloudSkipped){ await syncDown(); return; }
+  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+  if(RECOVERY_MODE){ alert('🔒 Mode récupération actif : la synchronisation vers le cloud est désactivée pour protéger tes données. Utilise le bouton « Récupérer mes données du cloud » en haut.'); return; }
+  /* ====================================================== */
   setSyncUI('syncing');
   try{
     if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
@@ -1147,8 +1177,8 @@ async function forceSyncUp(){
     bin.shared.recipes  = S.recipes;
     bin[USER_KEY] = {menu:S.menu,suivi:S.suivi,sport:S.sport,tdeeProfile:S.tdeeProfile,goals:S.goals};
     const put = await fetch(BIN_URL,{method:'PUT',headers:BIN_HDR,body:JSON.stringify(bin)});
-    if(put.ok){ _binCache=bin; setSyncUI('ok'); showSyncMsg('✅ Sync OK'); } else { setSyncUI('error'); showSyncMsg('❌ Erreur HTTP '+put.status); }
-  }catch(e){ setSyncUI('error'); showSyncMsg('❌ '+e.message); }
+    if(put.ok){ _binCache=bin; setSyncUI('ok'); } else setSyncUI('error');
+  }catch(e){ setSyncUI('error'); }
 }
 function setSyncUI(st){
   syncStatus=st;
@@ -3928,9 +3958,7 @@ function splashError(msg){
   const skip = document.getElementById('splash-skip-btn');
   if(skip) skip.style.display = 'block';
 }
-let _cloudSkipped = false;
 function splashSkip(){
-  _cloudSkipped = true;
   if(!S || !S.aliments) S = emptyStore();
   renderAliments();
   renderMenu();
@@ -3939,49 +3967,6 @@ function splashSkip(){
   setSyncUI('error');
   const el = document.getElementById('splash-sync');
   if(el){ el.style.opacity='0'; el.style.transition='opacity 0.35s'; setTimeout(()=>el.remove(), 350); }
-}
-async function syncDown(){
-  // Télécharge les données cloud et les applique localement (sans push)
-  setSyncUI('syncing');
-  try{
-    const res = await fetch(BIN_URL, {headers:BIN_HDR});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const bin = await res.json();
-    _binCache = bin;
-    const shared   = bin.shared  || {};
-    const personal = bin[USER_KEY] || {};
-    S = {
-      aliments   : shared.aliments      || defaultAliments(),
-      recipes    : shared.recipes       || defaultRecipes(),
-      menu       : personal.menu        || {},
-      suivi      : personal.suivi       || {weights:[],dailyChecks:{}},
-      sport      : personal.sport       || {template:defaultSportTemplate(),weeks:{},weekGoals:{}},
-      tdeeProfile: personal.tdeeProfile || {},
-      goals      : personal.goals       || {kcal:968,prot:110,gluc:87,lip:20}
-    };
-    try{localStorage.setItem(STORE_KEY, JSON.stringify(S));}catch(e){}
-    _cloudSkipped = false;
-    setSyncUI('ok');
-    renderAliments();
-    renderMenu();
-    showSyncMsg('✅ Données restaurées depuis le cloud !');
-  }catch(e){
-    setSyncUI('error');
-    showSyncMsg('❌ Erreur : '+e.message);
-  }
-}
-function showSyncMsg(msg){
-  let el = document.getElementById('sync-msg-banner');
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'sync-msg-banner';
-    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:9000;opacity:1;transition:opacity 0.5s';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.style.opacity = '1';
-  clearTimeout(el._t);
-  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3500);
 }
 async function splashRetry(){
   document.getElementById('splash-retry-btn').style.display = 'none';
@@ -3993,7 +3978,75 @@ async function splashRetry(){
 // ============================================================
 // INIT
 // ============================================================
+/* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+// Récupère TOUTES les données du cloud et les recharge en local.
+// GET uniquement — n'écrit JAMAIS dans le cloud.
+async function recoverFromCloud(){
+  const banner = document.getElementById('recovery-banner');
+  const statusEl = document.getElementById('recovery-status');
+  const btn = document.getElementById('recovery-btn');
+  if(btn) btn.disabled = true;
+  if(statusEl) statusEl.textContent = '⏳ Connexion au cloud…';
+  try{
+    const res = await fetch(BIN_URL, {headers:BIN_HDR});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const bin = await res.json();
+    _binCache = bin; // cache lecture seule, aucune écriture
+
+    const shared   = bin.shared   || {};
+    const personal = bin[USER_KEY] || {};
+    const store = {
+      aliments   : shared.aliments     || defaultAliments(),
+      recipes    : shared.recipes      || defaultRecipes(),
+      menu       : personal.menu       || {},
+      suivi      : personal.suivi      || {weights:[], dailyChecks:{}},
+      sport      : personal.sport      || {template:defaultSportTemplate(), weeks:{}, weekGoals:{}},
+      tdeeProfile: personal.tdeeProfile || {},
+      goals      : personal.goals      || {kcal:968, prot:110, gluc:87, lip:20}
+    };
+    S = store;
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
+
+    // Re-rendu complet de toute l'app
+    renderAliments(); renderRecipes(); renderMenu();
+    renderSuivi(); renderSport(); renderBilan(); loadApiKeyUI();
+
+    const nbAli  = (S.aliments||[]).length;
+    const nbRec  = (S.recipes||[]).length;
+    const nbWk   = Object.keys(S.menu||{}).length;
+    const nbWeights = (S.suivi&&S.suivi.weights?S.suivi.weights.length:0);
+    if(statusEl){
+      statusEl.innerHTML = '✅ <b>Données récupérées et enregistrées en local.</b><br>'+
+        nbAli+' aliments · '+nbRec+' recettes · '+nbWk+' semaine(s) de menu · '+nbWeights+' pesée(s).<br>'+
+        '<span style="font-size:11px">Vérifie tes onglets. Tout est bon ? Dis-le moi, je remettrai la version normale (avec la sync cloud).</span>';
+    }
+    if(btn){ btn.textContent='✅ Récupéré'; }
+  }catch(e){
+    if(statusEl) statusEl.innerHTML = '⚠️ <b>Échec :</b> '+(e.message||'erreur réseau')+'. Vérifie ta connexion et réessaie.';
+    if(btn){ btn.disabled=false; }
+  }
+}
+/* ====================================================== */
+
 async function initApp(){
+  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
+  if(RECOVERY_MODE){
+    // Démarrage local uniquement — aucune lecture du cloud à l'ouverture.
+    try { const v = localStorage.getItem(STORE_KEY); if(v) S = JSON.parse(v); }
+    catch(e){ S = emptyStore(); }
+    if(!S || !S.aliments) S = emptyStore();
+    renderAliments(); renderRecipes(); renderMenu();
+    renderSuivi(); renderSport(); renderBilan(); loadApiKeyUI();
+    // Retirer le splash tout de suite (plus de blocage possible)
+    const el = document.getElementById('splash-sync');
+    if(el) el.remove();
+    // Afficher la bannière de récupération
+    const banner = document.getElementById('recovery-banner');
+    if(banner) banner.style.display = 'block';
+    setSyncUI('error'); // visuel : cloud non synchronisé pendant la récupération
+    return;
+  }
+  /* ====================================================== */
   // ── Étape 1 : Affichage immédiat depuis localStorage (< 5ms) ──
   let hasLocal = false;
   try {
