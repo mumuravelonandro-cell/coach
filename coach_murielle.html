@@ -1131,6 +1131,7 @@ function migrateFreeMeals(){
 // Bouton sync manuel dans la nav
 let syncStatus = null;
 async function forceSyncUp(){
+  if(_cloudSkipped){ await syncDown(); return; }
   setSyncUI('syncing');
   try{
     if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
@@ -1146,8 +1147,8 @@ async function forceSyncUp(){
     bin.shared.recipes  = S.recipes;
     bin[USER_KEY] = {menu:S.menu,suivi:S.suivi,sport:S.sport,tdeeProfile:S.tdeeProfile,goals:S.goals};
     const put = await fetch(BIN_URL,{method:'PUT',headers:BIN_HDR,body:JSON.stringify(bin)});
-    if(put.ok){ _binCache=bin; setSyncUI('ok'); } else setSyncUI('error');
-  }catch(e){ setSyncUI('error'); }
+    if(put.ok){ _binCache=bin; setSyncUI('ok'); showSyncMsg('✅ Sync OK'); } else { setSyncUI('error'); showSyncMsg('❌ Erreur HTTP '+put.status); }
+  }catch(e){ setSyncUI('error'); showSyncMsg('❌ '+e.message); }
 }
 function setSyncUI(st){
   syncStatus=st;
@@ -3927,7 +3928,9 @@ function splashError(msg){
   const skip = document.getElementById('splash-skip-btn');
   if(skip) skip.style.display = 'block';
 }
+let _cloudSkipped = false;
 function splashSkip(){
+  _cloudSkipped = true;
   if(!S || !S.aliments) S = emptyStore();
   renderAliments();
   renderMenu();
@@ -3936,6 +3939,49 @@ function splashSkip(){
   setSyncUI('error');
   const el = document.getElementById('splash-sync');
   if(el){ el.style.opacity='0'; el.style.transition='opacity 0.35s'; setTimeout(()=>el.remove(), 350); }
+}
+async function syncDown(){
+  // Télécharge les données cloud et les applique localement (sans push)
+  setSyncUI('syncing');
+  try{
+    const res = await fetch(BIN_URL, {headers:BIN_HDR});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const bin = await res.json();
+    _binCache = bin;
+    const shared   = bin.shared  || {};
+    const personal = bin[USER_KEY] || {};
+    S = {
+      aliments   : shared.aliments      || defaultAliments(),
+      recipes    : shared.recipes       || defaultRecipes(),
+      menu       : personal.menu        || {},
+      suivi      : personal.suivi       || {weights:[],dailyChecks:{}},
+      sport      : personal.sport       || {template:defaultSportTemplate(),weeks:{},weekGoals:{}},
+      tdeeProfile: personal.tdeeProfile || {},
+      goals      : personal.goals       || {kcal:968,prot:110,gluc:87,lip:20}
+    };
+    try{localStorage.setItem(STORE_KEY, JSON.stringify(S));}catch(e){}
+    _cloudSkipped = false;
+    setSyncUI('ok');
+    renderAliments();
+    renderMenu();
+    showSyncMsg('✅ Données restaurées depuis le cloud !');
+  }catch(e){
+    setSyncUI('error');
+    showSyncMsg('❌ Erreur : '+e.message);
+  }
+}
+function showSyncMsg(msg){
+  let el = document.getElementById('sync-msg-banner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'sync-msg-banner';
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:9000;opacity:1;transition:opacity 0.5s';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.opacity='0'; }, 3500);
 }
 async function splashRetry(){
   document.getElementById('splash-retry-btn').style.display = 'none';
