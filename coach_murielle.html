@@ -132,6 +132,7 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
     <div id="splash-bar" style="height:100%;width:0%;background:var(--terra);border-radius:10px;transition:width 0.4s ease"></div>
   </div>
   <button id="splash-retry-btn" onclick="splashRetry()" style="display:none;margin-top:8px;background:var(--dark);color:#fff;border:none;border-radius:10px;padding:9px 22px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Réessayer</button>
+  <button id="splash-skip-btn" onclick="splashSkip()" style="display:none;margin-top:2px;background:none;color:var(--muted);border:none;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;text-decoration:underline">Continuer sans connexion →</button>
 </div>
 
 <nav class="nav">
@@ -3923,6 +3924,18 @@ function splashError(msg){
   splashProgress(100, msg || 'Erreur de connexion');
   const btn = document.getElementById('splash-retry-btn');
   if(btn) btn.style.display = 'block';
+  const skip = document.getElementById('splash-skip-btn');
+  if(skip) skip.style.display = 'block';
+}
+function splashSkip(){
+  if(!S || !S.aliments) S = emptyStore();
+  renderAliments();
+  renderMenu();
+  loadApiKeyUI();
+  migrateFreeMeals();
+  setSyncUI('error');
+  const el = document.getElementById('splash-sync');
+  if(el){ el.style.opacity='0'; el.style.transition='opacity 0.35s'; setTimeout(()=>el.remove(), 350); }
 }
 async function splashRetry(){
   document.getElementById('splash-retry-btn').style.display = 'none';
