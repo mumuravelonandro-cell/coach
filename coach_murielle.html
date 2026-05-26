@@ -147,15 +147,6 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
   <button class="nav-tab" onclick="showTab('bilan',this)">📈 Bilan</button>
 </nav>
 
-<!-- ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== -->
-<div id="recovery-banner" style="display:none;margin:12px;padding:16px;border:2px dashed var(--terra);border-radius:14px;background:var(--cream);text-align:center">
-  <div style="font-weight:700;color:var(--dark);font-size:15px;margin-bottom:4px">🛟 Récupération des données</div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Tes données locales ont été effacées. Clique pour les recharger depuis le cloud (lecture seule — aucun risque d'écrasement).</div>
-  <button id="recovery-btn" onclick="recoverFromCloud()" style="background:var(--terra);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">⬇️ Récupérer mes données du cloud</button>
-  <div id="recovery-status" style="margin-top:12px;font-size:13px;color:var(--dark);line-height:1.5"></div>
-</div>
-<!-- ====================================================== -->
-
 <!-- ===== ALIMENTS ===== -->
 <div id="page-aliments" class="page">
   <div class="flex-b mb-20">
@@ -439,6 +430,33 @@ label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text
       <button class="btn btn-dark btn-sm" onclick="saveApiKey()">Enregistrer</button>
     </div>
     <div id="api-key-status" style="font-size:11px;margin-top:8px;color:var(--muted)"></div>
+  </div>
+
+  <!-- Sauvegarde / Restauration -->
+  <div class="card" style="margin-top:14px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:7px"><span>💾</span> Sauvegarde &amp; restauration</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Exporte tes données en texte pour les transférer vers l'autre app, ou colle ici un export reçu pour le restaurer. Fonctionne même sans cloud.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="btn btn-outline btn-sm" onclick="exportData()">📤 Exporter</button>
+      <button class="btn btn-outline btn-sm" onclick="copyExport()">📋 Copier</button>
+      <button class="btn btn-dark btn-sm" onclick="importData()">📥 Importer</button>
+    </div>
+    <textarea id="io-textarea" placeholder="Le texte exporté apparaît ici. Pour importer : colle un export reçu puis « Importer »." style="width:100%;min-height:90px;font-family:monospace;font-size:11px;resize:vertical"></textarea>
+    <div id="io-status" style="font-size:11px;margin-top:8px;color:var(--muted);line-height:1.5"></div>
+  </div>
+
+  <!-- Cloud GitHub Gist -->
+  <div class="card" style="margin-top:14px">
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:7px"><span>🐙</span> Cloud GitHub Gist</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Remplace JSONBin par un Gist GitHub (fiable, gratuit). Crée un <b>token</b> avec le scope <code>gist</code> sur <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Coach%20NutriFlow" target="_blank" style="color:var(--terra)">github.com/settings/tokens</a>. Le token reste sur cet appareil et n'est jamais écrit dans le code.</div>
+    <input type="password" id="gist-token-input" placeholder="ghp_… (token GitHub, scope gist)" style="width:100%;font-family:monospace;font-size:12px;margin-bottom:8px">
+    <input type="text" id="gist-id-input" placeholder="Identifiant du Gist (vide = en créer un nouveau)" style="width:100%;font-family:monospace;font-size:12px;margin-bottom:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="gistCreate()">➕ Créer un Gist</button>
+      <button class="btn btn-dark btn-sm" onclick="gistConnect()">🔗 Connecter</button>
+      <button class="btn btn-outline btn-sm" onclick="gistDisconnect()">Déconnecter</button>
+    </div>
+    <div id="gist-status" style="font-size:11px;margin-top:8px;color:var(--muted);line-height:1.5"></div>
   </div>
 </div>
 
@@ -940,23 +958,50 @@ const BIN_KEY = '$2a$10$o6vPV1rT15ZkKtURoEmYFuuT30W478STqXdsQnPM4qh32HstZyWri';
 const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 const BIN_HDR = {'Content-Type':'application/json','X-Master-Key':BIN_KEY,'X-Bin-Meta':'false'};
 
+// ── Couche cloud : GitHub Gist (préféré) + JSONBin (repli automatique) ──
+const GIST_FILE = 'coach-data.json';
+function gistToken(){ return localStorage.getItem('coach_gist_token') || ''; }
+function gistId(){    return localStorage.getItem('coach_gist_id')    || ''; }
+function gistOn(){    return !!(gistToken() && gistId()); }
+function gistHdr(){ return {'Authorization':'token '+gistToken(),'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
+
+// Récupère le bin complet {shared, murielle, nicolas} — même forme que JSONBin
+async function cloudGet(){
+  if(gistOn()){
+    const r = await fetch('https://api.github.com/gists/'+gistId(), {headers:gistHdr()});
+    if(!r.ok) throw new Error('Gist GET HTTP '+r.status);
+    const g = await r.json();
+    const f = g.files && g.files[GIST_FILE];
+    if(!f) return {};
+    let txt = f.content;
+    if(f.truncated && f.raw_url){ txt = await (await fetch(f.raw_url, {headers:gistHdr()})).text(); }
+    return txt ? JSON.parse(txt) : {};
+  }
+  const r = await fetch(BIN_URL, {headers:BIN_HDR});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.json();
+}
+// Écrit le bin complet. Lève une erreur si échec. keepalive pour beforeunload.
+async function cloudPut(bin, keepalive){
+  if(gistOn()){
+    const r = await fetch('https://api.github.com/gists/'+gistId(), {method:'PATCH', headers:Object.assign({'Content-Type':'application/json'}, gistHdr()), body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(bin)}}}), keepalive:!!keepalive});
+    if(!r.ok) throw new Error('Gist PUT HTTP '+r.status);
+    return r;
+  }
+  const r = await fetch(BIN_URL, {method:'PUT', headers:BIN_HDR, body:JSON.stringify(bin), keepalive:!!keepalive});
+  if(!r.ok) throw new Error('PUT failed: HTTP '+r.status);
+  return r;
+}
+
 let _binSaveTimer = null;
 let _binLastData  = null;
 let _binCache     = null;
 let _pendingSave  = false; // true si un save cloud n'a pas encore été confirmé
 
-/* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-// Mode récupération : ne lit PAS le cloud au démarrage et N'ÉCRIT JAMAIS vers le cloud.
-// Permet de récupérer les données cloud en local sans aucun risque d'écrasement.
-const RECOVERY_MODE = true;
-/* ====================================================== */
-
 // Charge depuis le BIN (shared + perso), fallback localStorage
 async function loadFromBin(){
   try{
-    const res = await fetch(BIN_URL, {headers:BIN_HDR});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const bin = await res.json();
+    const bin = await cloudGet();
     _binCache = bin;
     const shared  = bin.shared || {};
     const personal = bin[USER_KEY] || {};
@@ -980,17 +1025,12 @@ async function loadFromBin(){
 // Sauvegarde dans le BIN — debounce 600ms, indicateur visuel, protection beforeunload
 async function _doSaveToBin(){
   _binSaveTimer = null;
-  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-  if(RECOVERY_MODE){ console.warn('[RECOVERY] écriture cloud bloquée'); _pendingSave=false; return; }
-  /* ====================================================== */
   const data = _binLastData;
   if(!data) return;
   setSyncUI('syncing');
   try{
     // Toujours faire un GET frais pour éviter d'écraser les données de Nicolas
-    const res = await fetch(BIN_URL, {headers:BIN_HDR});
-    if(!res.ok) throw new Error('GET failed: HTTP '+res.status);
-    const bin = await res.json();
+    const bin = await cloudGet();
     _binCache = bin;
     if(!bin.shared) bin.shared = {};
     bin.shared.aliments = data.aliments;
@@ -1002,8 +1042,7 @@ async function _doSaveToBin(){
       tdeeProfile: data.tdeeProfile,
       goals      : data.goals
     };
-    const put = await fetch(BIN_URL, {method:'PUT', headers:BIN_HDR, body:JSON.stringify(bin)});
-    if(!put.ok) throw new Error('PUT failed: HTTP '+put.status);
+    await cloudPut(bin);
     _binCache = bin;
     _pendingSave = false;
     setSyncUI('ok');
@@ -1015,13 +1054,6 @@ async function _doSaveToBin(){
 }
 
 async function saveToBin(store){
-  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-  if(RECOVERY_MODE){
-    // En mode récupération : sauvegarde locale uniquement, jamais vers le cloud.
-    try{localStorage.setItem(STORE_KEY, JSON.stringify(store));}catch(e){}
-    return;
-  }
-  /* ====================================================== */
   if(_binSaveTimer) clearTimeout(_binSaveTimer);
   _binLastData = store;
   _pendingSave = true;
@@ -1031,9 +1063,6 @@ async function saveToBin(store){
 
 // Flush immédiat si on ferme/recharge la page avec un save en attente
 window.addEventListener('beforeunload', ()=>{
-  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-  if(RECOVERY_MODE) return; // jamais d'écriture cloud en mode récupération
-  /* ====================================================== */
   if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
   if(_pendingSave && _binLastData && _binCache){
     // Mise à jour synchrone du cache local en dernier recours
@@ -1045,7 +1074,7 @@ window.addEventListener('beforeunload', ()=>{
     bin.shared.recipes  = _binLastData.recipes;
     bin[USER_KEY] = {menu:_binLastData.menu,suivi:_binLastData.suivi,sport:_binLastData.sport,tdeeProfile:_binLastData.tdeeProfile,goals:_binLastData.goals};
     navigator.sendBeacon && navigator.sendBeacon('/dev/null'); // keep-alive hint
-    fetch(BIN_URL,{method:'PUT',headers:BIN_HDR,body:JSON.stringify(bin),keepalive:true}).catch(()=>{});
+    cloudPut(bin, true).catch(()=>{});
   }
 });
 // Goals — dynamiques via l'onglet Objectifs
@@ -1159,25 +1188,19 @@ function migrateFreeMeals(){
 // Bouton sync manuel dans la nav
 let syncStatus = null;
 async function forceSyncUp(){
-  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-  if(RECOVERY_MODE){ alert('🔒 Mode récupération actif : la synchronisation vers le cloud est désactivée pour protéger tes données. Utilise le bouton « Récupérer mes données du cloud » en haut.'); return; }
-  /* ====================================================== */
   setSyncUI('syncing');
   try{
     if(_binSaveTimer){ clearTimeout(_binSaveTimer); _binSaveTimer=null; }
     let bin = _binCache;
     if(!bin){
-      const res = await fetch(BIN_URL, {headers:BIN_HDR});
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      bin = await res.json();
+      bin = await cloudGet();
       _binCache = bin;
     }
     if(!bin.shared) bin.shared = {};
     bin.shared.aliments = S.aliments;
     bin.shared.recipes  = S.recipes;
     bin[USER_KEY] = {menu:S.menu,suivi:S.suivi,sport:S.sport,tdeeProfile:S.tdeeProfile,goals:S.goals};
-    const put = await fetch(BIN_URL,{method:'PUT',headers:BIN_HDR,body:JSON.stringify(bin)});
-    if(put.ok){ _binCache=bin; setSyncUI('ok'); } else setSyncUI('error');
+    try{ await cloudPut(bin); _binCache=bin; setSyncUI('ok'); }catch(e2){ setSyncUI('error'); }
   }catch(e){ setSyncUI('error'); }
 }
 function setSyncUI(st){
@@ -1429,6 +1452,138 @@ function doConfirm(){if(_confirmCb){_confirmCb();_confirmCb=null;}closeM('modal-
 function cancelConfirm(){_confirmCb=null;closeM('modal-confirm');}
 
 // ============================================================
+// SAUVEGARDE / RESTAURATION / GIST  (résilience anti-perte de données)
+// ============================================================
+// Construit un bin complet à partir des données locales (1 seul namespace connu)
+function _binFromLocal(){
+  const b = { shared:{ aliments:S.aliments, recipes:S.recipes } };
+  b[USER_KEY] = { menu:S.menu, suivi:S.suivi, sport:S.sport, tdeeProfile:S.tdeeProfile, goals:S.goals };
+  if(_binCache){ for(const k of ['shared','murielle','nicolas']){ if(_binCache[k] && !b[k]) b[k] = _binCache[k]; } }
+  return b;
+}
+function _ioFlash(msg){ const st=document.getElementById('io-status'); if(!st)return; const old=st.innerHTML; st.innerHTML=msg; setTimeout(()=>{ if(st.innerHTML===msg) st.innerHTML=old; },1800); }
+
+// ── Export : tente le cloud (bin complet des 2 users), sinon données locales ──
+async function exportData(){
+  const st = document.getElementById('io-status');
+  const ta = document.getElementById('io-textarea');
+  let bin = null, src = '';
+  try{ bin = await cloudGet(); src = gistOn()?'Gist GitHub':'JSONBin'; }catch(e){ bin = null; }
+  if(!bin || (!bin.shared && !bin.murielle && !bin.nicolas)){ bin = _binFromLocal(); src = 'local (cloud injoignable)'; }
+  ta.value = JSON.stringify(bin);
+  const hasM = !!(bin.murielle && Object.keys(bin.murielle).length);
+  const hasN = !!(bin.nicolas  && Object.keys(bin.nicolas ).length);
+  const ko = Math.round(ta.value.length/1024);
+  st.innerHTML = 'Source : <b>'+src+'</b> · '+ko+' Ko<br>Données Murielle : '+(hasM?'✅ incluses':'❌ absentes')+' · Données Nicolas : '+(hasN?'✅ incluses':'❌ absentes')+'<br>👉 Copie ce texte et colle-le dans l\'autre app (Importer).';
+  st.style.color = 'var(--dark)';
+}
+function copyExport(){
+  const ta = document.getElementById('io-textarea');
+  if(!ta.value){ _ioFlash('Rien à copier — clique d\'abord sur Exporter.'); return; }
+  ta.select();
+  const done = ()=>_ioFlash('📋 Copié !');
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ try{document.execCommand('copy');}catch(e){} done(); }); }
+  else { try{document.execCommand('copy');}catch(e){} done(); }
+}
+
+// ── Import : accepte un bin complet OU un store, fusionne, sauvegarde ──
+async function importData(){
+  const st = document.getElementById('io-status');
+  const ta = document.getElementById('io-textarea');
+  let obj;
+  try{ obj = JSON.parse((ta.value||'').trim()); }
+  catch(e){ st.innerHTML='<span style="color:var(--red)">❌ JSON invalide.</span>'; return; }
+  let bin;
+  if(obj && (obj.shared || obj.murielle || obj.nicolas)){ bin = obj; }
+  else if(obj && (obj.aliments || obj.recipes || obj.menu || obj.suivi)){
+    bin = { shared:{ aliments:obj.aliments, recipes:obj.recipes } };
+    bin[USER_KEY] = { menu:obj.menu, suivi:obj.suivi, sport:obj.sport, tdeeProfile:obj.tdeeProfile, goals:obj.goals };
+  } else { st.innerHTML='<span style="color:var(--red)">❌ Format non reconnu.</span>'; return; }
+
+  const shared = bin.shared || {};
+  if(shared.aliments) S.aliments = shared.aliments;
+  if(shared.recipes)  S.recipes  = shared.recipes;
+  const me = bin[USER_KEY] || {};
+  const restored = [];
+  if(me.menu        !== undefined){ S.menu        = me.menu;        restored.push('menu'); }
+  if(me.suivi       !== undefined){ S.suivi       = me.suivi;       restored.push('suivi'); }
+  if(me.sport       !== undefined){ S.sport       = me.sport;       restored.push('sport'); }
+  if(me.tdeeProfile !== undefined){ S.tdeeProfile = me.tdeeProfile; restored.push('profil'); }
+  if(me.goals       !== undefined){ S.goals       = me.goals;       restored.push('objectifs'); }
+
+  _binCache = bin; // garde les 2 namespaces -> ne pas écraser l'autre user au prochain save
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
+  migrateFreeMeals();
+  renderAliments(); renderRecipes(); renderMenu();
+  let cloudMsg = '';
+  try{ await cloudPut(bin); cloudMsg = ' · ☁️ cloud mis à jour'; }catch(e){ cloudMsg = ' · ⚠️ cloud non joignable (sauvé en local)'; }
+  const na = (S.aliments||[]).length, nr = (S.recipes||[]).length;
+  st.innerHTML = '✅ Importé : '+na+' aliments, '+nr+' recettes'+(restored.length? ' · perso ('+restored.join(', ')+')':' · aucune donnée perso dans ce fichier')+cloudMsg;
+  st.style.color = 'var(--sage)';
+}
+
+// ── GitHub Gist : configuration ──
+function loadGistUI(){
+  const i = document.getElementById('gist-id-input'); if(i && !i.value) i.value = gistId();
+  const s = document.getElementById('gist-status');
+  if(s) s.innerHTML = gistOn()? '✅ Cloud actif via Gist : <code>'+gistId()+'</code>' : 'Non configuré — JSONBin utilisé pour l\'instant.';
+}
+async function gistCreate(){
+  const s = document.getElementById('gist-status');
+  const tok = document.getElementById('gist-token-input').value.trim();
+  if(!tok){ s.innerHTML='<span style="color:var(--red)">Token vide.</span>'; return; }
+  s.innerHTML='⏳ Création du Gist…';
+  let bin = null;
+  try{ bin = await cloudGet(); }catch(e){ bin = null; }
+  if(!bin || (!bin.shared && !bin.murielle && !bin.nicolas)) bin = _binFromLocal();
+  try{
+    const r = await fetch('https://api.github.com/gists', {method:'POST', headers:{'Authorization':'token '+tok,'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'}, body:JSON.stringify({description:'Coach NutriFlow — données partagées', public:false, files:{[GIST_FILE]:{content:JSON.stringify(bin)}}})});
+    if(!r.ok){ s.innerHTML='<span style="color:var(--red)">❌ Échec ('+r.status+'). Vérifie que le token a bien le scope « gist ».</span>'; return; }
+    const g = await r.json();
+    localStorage.setItem('coach_gist_token', tok);
+    localStorage.setItem('coach_gist_id', g.id);
+    document.getElementById('gist-id-input').value = g.id;
+    s.innerHTML = '✅ Gist créé : <code>'+g.id+'</code><br>👉 Donne CET identifiant + le token à l\'autre app, puis « Connecter ».';
+  }catch(e){ s.innerHTML='<span style="color:var(--red)">❌ Erreur réseau / CORS : '+e.message+'</span>'; }
+}
+async function gistConnect(){
+  const s = document.getElementById('gist-status');
+  const tok = document.getElementById('gist-token-input').value.trim();
+  const id  = document.getElementById('gist-id-input').value.trim();
+  if(!tok || !id){ s.innerHTML='<span style="color:var(--red)">Token ET identifiant requis.</span>'; return; }
+  const prevT = gistToken(), prevI = gistId();
+  localStorage.setItem('coach_gist_token', tok);
+  localStorage.setItem('coach_gist_id', id);
+  s.innerHTML='⏳ Connexion + chargement…';
+  try{
+    const bin = await cloudGet();
+    _binCache = bin;
+    const shared = bin.shared||{};
+    if(shared.aliments) S.aliments = shared.aliments;
+    if(shared.recipes)  S.recipes  = shared.recipes;
+    const me = bin[USER_KEY]||{};
+    if(me.menu!==undefined) S.menu=me.menu;
+    if(me.suivi!==undefined) S.suivi=me.suivi;
+    if(me.sport!==undefined) S.sport=me.sport;
+    if(me.tdeeProfile!==undefined) S.tdeeProfile=me.tdeeProfile;
+    if(me.goals!==undefined) S.goals=me.goals;
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
+    migrateFreeMeals(); renderAliments(); renderRecipes(); renderMenu();
+    s.innerHTML = '✅ Connecté au Gist <code>'+id+'</code> — données chargées. Le cloud passe désormais par GitHub.';
+  }catch(e){
+    if(prevT) localStorage.setItem('coach_gist_token', prevT); else localStorage.removeItem('coach_gist_token');
+    if(prevI) localStorage.setItem('coach_gist_id', prevI); else localStorage.removeItem('coach_gist_id');
+    s.innerHTML='<span style="color:var(--red)">❌ Échec : '+e.message+'. Config inchangée.</span>';
+  }
+}
+function gistDisconnect(){
+  localStorage.removeItem('coach_gist_token');
+  localStorage.removeItem('coach_gist_id');
+  const t=document.getElementById('gist-token-input'); if(t) t.value='';
+  loadGistUI();
+}
+
+// ============================================================
 // API KEY MANAGEMENT
 // ============================================================
 function getApiKey(){return localStorage.getItem('coach_api_key')||'';}
@@ -1445,6 +1600,7 @@ function loadApiKeyUI(){
     document.getElementById('api-key-input').value=k;
     document.getElementById('api-key-status').innerHTML='<span style="color:var(--sage)">✅ Clé enregistrée</span>';
   }
+  loadGistUI();
 }
 
 // ============================================================
@@ -3978,75 +4134,7 @@ async function splashRetry(){
 // ============================================================
 // INIT
 // ============================================================
-/* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-// Récupère TOUTES les données du cloud et les recharge en local.
-// GET uniquement — n'écrit JAMAIS dans le cloud.
-async function recoverFromCloud(){
-  const banner = document.getElementById('recovery-banner');
-  const statusEl = document.getElementById('recovery-status');
-  const btn = document.getElementById('recovery-btn');
-  if(btn) btn.disabled = true;
-  if(statusEl) statusEl.textContent = '⏳ Connexion au cloud…';
-  try{
-    const res = await fetch(BIN_URL, {headers:BIN_HDR});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const bin = await res.json();
-    _binCache = bin; // cache lecture seule, aucune écriture
-
-    const shared   = bin.shared   || {};
-    const personal = bin[USER_KEY] || {};
-    const store = {
-      aliments   : shared.aliments     || defaultAliments(),
-      recipes    : shared.recipes      || defaultRecipes(),
-      menu       : personal.menu       || {},
-      suivi      : personal.suivi      || {weights:[], dailyChecks:{}},
-      sport      : personal.sport      || {template:defaultSportTemplate(), weeks:{}, weekGoals:{}},
-      tdeeProfile: personal.tdeeProfile || {},
-      goals      : personal.goals      || {kcal:968, prot:110, gluc:87, lip:20}
-    };
-    S = store;
-    try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
-
-    // Re-rendu complet de toute l'app
-    renderAliments(); renderRecipes(); renderMenu();
-    renderSuivi(); renderSport(); renderBilan(); loadApiKeyUI();
-
-    const nbAli  = (S.aliments||[]).length;
-    const nbRec  = (S.recipes||[]).length;
-    const nbWk   = Object.keys(S.menu||{}).length;
-    const nbWeights = (S.suivi&&S.suivi.weights?S.suivi.weights.length:0);
-    if(statusEl){
-      statusEl.innerHTML = '✅ <b>Données récupérées et enregistrées en local.</b><br>'+
-        nbAli+' aliments · '+nbRec+' recettes · '+nbWk+' semaine(s) de menu · '+nbWeights+' pesée(s).<br>'+
-        '<span style="font-size:11px">Vérifie tes onglets. Tout est bon ? Dis-le moi, je remettrai la version normale (avec la sync cloud).</span>';
-    }
-    if(btn){ btn.textContent='✅ Récupéré'; }
-  }catch(e){
-    if(statusEl) statusEl.innerHTML = '⚠️ <b>Échec :</b> '+(e.message||'erreur réseau')+'. Vérifie ta connexion et réessaie.';
-    if(btn){ btn.disabled=false; }
-  }
-}
-/* ====================================================== */
-
 async function initApp(){
-  /* ===== RÉCUPÉRATION TEMPORAIRE — À SUPPRIMER APRÈS ===== */
-  if(RECOVERY_MODE){
-    // Démarrage local uniquement — aucune lecture du cloud à l'ouverture.
-    try { const v = localStorage.getItem(STORE_KEY); if(v) S = JSON.parse(v); }
-    catch(e){ S = emptyStore(); }
-    if(!S || !S.aliments) S = emptyStore();
-    renderAliments(); renderRecipes(); renderMenu();
-    renderSuivi(); renderSport(); renderBilan(); loadApiKeyUI();
-    // Retirer le splash tout de suite (plus de blocage possible)
-    const el = document.getElementById('splash-sync');
-    if(el) el.remove();
-    // Afficher la bannière de récupération
-    const banner = document.getElementById('recovery-banner');
-    if(banner) banner.style.display = 'block';
-    setSyncUI('error'); // visuel : cloud non synchronisé pendant la récupération
-    return;
-  }
-  /* ====================================================== */
   // ── Étape 1 : Affichage immédiat depuis localStorage (< 5ms) ──
   let hasLocal = false;
   try {
@@ -4073,11 +4161,8 @@ async function initApp(){
 
   // ── Étape 2 : Sync cloud en arrière-plan (ou en foreground si pas de cache local) ──
   try {
-    const fetchPromise = fetch(BIN_URL, {headers: BIN_HDR});
     const timeoutPromise = new Promise((_,r) => setTimeout(()=>r(new Error('timeout')), 8000));
-    const res = await Promise.race([fetchPromise, timeoutPromise]);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const bin = await res.json();
+    const bin = await Promise.race([cloudGet(), timeoutPromise]);
     _binCache = bin;
 
     const shared   = bin.shared  || {};
@@ -4128,9 +4213,7 @@ async function initApp(){
   setInterval(async ()=>{
     if(_pendingSave) return; // Ne pas écraser si un save est en cours
     try {
-      const res = await fetch(BIN_URL, {headers: BIN_HDR});
-      if(!res.ok) return;
-      const bin = await res.json();
+      const bin = await cloudGet();
       _binCache = bin;
       const shared = bin.shared || {};
       if(shared.aliments) S.aliments = shared.aliments;
