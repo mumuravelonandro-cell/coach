@@ -8,17 +8,25 @@
   body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
   h2 { color: #1a1a1a; }
   .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 16px; }
+  label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-bottom: 6px; }
+  input { width: 100%; padding: 12px; border: 1.5px solid #ddd; border-radius: 10px; font-size: 14px; box-sizing: border-box; }
   .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; background: #1a1410; color: white; margin-top: 12px; }
   .btn:disabled { background: #ccc; cursor: not-allowed; }
   .log { background: #f0f0f0; border-radius: 10px; padding: 14px; font-size: 13px; line-height: 1.8; margin-top: 16px; min-height: 60px; white-space: pre-wrap; }
   .ok { color: #2e7d32; font-weight: 600; }
   .err { color: #c62828; font-weight: 600; }
+  .note { font-size: 12px; color: #888; margin-top: 8px; }
 </style>
 </head>
 <body>
 <div class="card">
   <h2>🔄 Migration NutriFlow</h2>
-  <p style="color:#555;font-size:14px">Transfère tes données de JSONBin vers GitHub Gist en un clic.</p>
+  <p style="color:#555;font-size:14px">Transfère tes données de JSONBin vers GitHub Gist.</p>
+
+  <label for="token">Token GitHub (scope gist)</label>
+  <input type="password" id="token" placeholder="ghp_..." autocomplete="off" />
+  <p class="note">⚠️ Saisi ici uniquement, jamais sauvegardé.</p>
+
   <button class="btn" id="btn" onclick="migrate()">Lancer la migration</button>
   <div class="log" id="log">En attente...</div>
 </div>
@@ -27,14 +35,16 @@
 const BIN_URL  = 'https://api.jsonbin.io/v3/b/69b5db9cb7ec241ddc6ba14e';
 const BIN_HDR  = {'X-Master-Key':'$2a$10$o6vPV1rT15ZkKtURoEmYFuuT30W478STqXdsQnPM4qh32HstZyWri','X-Bin-Meta':'false'};
 const GIST_ID  = 'c0add1db9d67aacb51c3df6e2c2320d5';
-const GH_TOKEN = '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';
 
 function log(msg, cls) {
   const el = document.getElementById('log');
-  el.innerHTML += `<span class="${cls||''}">${msg}</span>\n`;
+  el.innerHTML += '<span class="' + (cls||'') + '">' + msg + '</span>\n';
 }
 
 async function migrate() {
+  const token = document.getElementById('token').value.trim();
+  if (!token) { alert('Saisis ton token GitHub d\'abord.'); return; }
+
   document.getElementById('btn').disabled = true;
   document.getElementById('log').innerHTML = '';
 
@@ -44,15 +54,13 @@ async function migrate() {
     if (!res.ok) throw new Error('JSONBin HTTP ' + res.status);
     const data = await res.json();
     log('✅ Données récupérées.', 'ok');
-
-    const keys = Object.keys(data);
-    log(`   Clés trouvées : ${keys.join(', ')}`);
+    log('   Clés : ' + Object.keys(data).join(', '));
 
     log('☁️ Écriture dans GitHub Gist...');
-    const put = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+    const put = await fetch('https://api.github.com/gists/' + GIST_ID, {
       method: 'PATCH',
       headers: {
-        'Authorization': `token ${GH_TOKEN}`,
+        'Authorization': 'token ' + token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -65,7 +73,6 @@ async function migrate() {
 
   } catch(e) {
     log('❌ Erreur : ' + e.message, 'err');
-    log('Réessaie ou contacte Claude.', 'err');
     document.getElementById('btn').disabled = false;
   }
 }
