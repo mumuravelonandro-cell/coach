@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutriFlow – Config</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 40px auto; padding: 20px; background: #f9f9f9; }
+  .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 16px; }
+  h2 { margin: 0 0 6px; font-size: 20px; }
+  p { color: #666; font-size: 14px; margin: 0 0 20px; line-height: 1.5; }
+  label { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 6px; }
+  input { width: 100%; padding: 12px; border: 1.5px solid #ddd; border-radius: 10px; font-size: 14px; font-family: monospace; box-sizing: border-box; }
+  input:focus { outline: none; border-color: #1a1410; }
+  .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; background: #1a1410; color: white; margin-top: 12px; font-family: inherit; }
+  .status { font-size: 13px; margin-top: 10px; min-height: 20px; }
+  .ok  { color: #2e7d32; font-weight: 600; }
+  .err { color: #c62828; font-weight: 600; }
+  .current { background: #f0faf0; border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #2e7d32; margin-bottom: 16px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2>☁️ NutriFlow – Sync</h2>
+  <p>Configure le token GitHub pour activer la synchronisation cloud sur cet appareil.</p>
+
+  <div class="current" id="current">✅ Token déjà configuré sur cet appareil.</div>
+
+  <label>Token GitHub (scope gist)</label>
+  <input type="password" id="token" placeholder="ghp_…" autocomplete="off" />
+
+  <button class="btn" onclick="save()">Enregistrer sur cet appareil</button>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+const KEY = 'gist_token';
+
+// Affiche si un token est déjà présent
+window.onload = () => {
+  if (localStorage.getItem(KEY)) {
+    document.getElementById('current').style.display = 'block';
+  }
+};
+
+function save() {
+  const v = document.getElementById('token').value.trim();
+  const st = document.getElementById('status');
+  if (!v) { st.innerHTML = '<span class="err">Saisis le token d\'abord.</span>'; return; }
+  if (!v.startsWith('ghp_')) { st.innerHTML = '<span class="err">Le token doit commencer par ghp_</span>'; return; }
+  localStorage.setItem(KEY, v);
+  document.getElementById('current').style.display = 'block';
+  document.getElementById('token').value = '';
+  st.innerHTML = '<span class="ok">✅ Token enregistré ! Tu peux fermer cette page.</span>';
+}
+</script>
+</body>
+</html>
