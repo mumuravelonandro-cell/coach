@@ -4053,7 +4053,7 @@ async function initApp(){
 // ============================================================
 // BILAN HEBDOMADAIRE
 // ============================================================
-let bilanMonday = getMonday(addDays(new Date(), -7)); // semaine précédente par défaut
+let bilanMonday = getMonday(); // semaine en cours par défaut
 
 function bilanPrevWeek(){bilanMonday=addDays(bilanMonday,-7);renderBilan();}
 function bilanNextWeek(){
